@@ -1,0 +1,8 @@
+#SPDX-License-Identifier: MIT-0
+---
+# vars file for roles/jenkins
+admin_user: Snaatak
+admin_password: Snaatak@33
+
+github_username: mukesh130478
+github_token: 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
