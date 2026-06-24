@@ -1,0 +1,29 @@
+---
+- name: Create IAM Users and Groups
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - vars.yml
+
+  tasks:
+
+    - name: Create IAM Groups
+      amazon.aws.iam_group:
+        name: "{{ item }}"
+        state: present
+      loop: "{{ iam_groups }}"
+
+    - name: Create IAM Users
+      amazon.aws.iam_user:
+        name: "{{ item.name }}"
+        state: present
+      loop: "{{ users }}"
+
+    - name: Add Users to Groups
+      ansible.builtin.command:
+        cmd: >
+          aws iam add-user-to-group
+          --user-name {{ item.name }}
+          --group-name {{ item.group }}
+      loop: "{{ users }}"
