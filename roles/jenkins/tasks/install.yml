@@ -1,0 +1,84 @@
+---
+# Ubuntu / Debian
+
+- name: Update APT package cache
+  apt:
+    update_cache: true
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Install Java (Ubuntu)
+  apt:
+    name: "{{ ubuntu_java_packages }}"
+    state: present
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Create APT keyrings directory
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Download Jenkins GPG key
+  get_url:
+    url: "{{ jenkins_apt_key_url }}"
+    dest: /etc/apt/keyrings/jenkins-keyring.asc
+    mode: "0644"
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Add Jenkins repository
+  apt_repository:
+    repo: "{{ jenkins_apt_repo }}"
+    filename: jenkins
+    state: present
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Update APT cache
+  apt:
+    update_cache: true
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Install Jenkins (Ubuntu)
+  apt:
+    name: jenkins
+    state: present
+  when: ansible_facts['os_family'] == "Debian"
+
+# RedHat / Rocky / AlmaLinux
+
+- name: Install Java (RedHat)
+  dnf:
+    name: "{{ redhat_java_packages }}"
+    state: present
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: Download Jenkins repository
+  get_url:
+    url: "{{ jenkins_yum_repo }}"
+    dest: /etc/yum.repos.d/jenkins.repo
+    mode: "0644"
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: Import Jenkins GPG key
+  rpm_key:
+    state: present
+    key: "{{ jenkins_rpm_key }}"
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: Install Jenkins (RedHat)
+  dnf:
+    name: jenkins
+    state: present
+  when: ansible_facts['os_family'] == "RedHat"
+
+# Common
+
+- name: Enable Jenkins service
+  systemd:
+    name: "{{ jenkins_service_name }}"
+    enabled: true
+
+- name: Stop Jenkins service
+  systemd:
+    name: "{{ jenkins_service_name }}"
+    state: stopped

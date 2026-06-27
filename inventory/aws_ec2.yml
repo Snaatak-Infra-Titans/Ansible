@@ -1,0 +1,21 @@
+plugin: amazon.aws.aws_ec2
+
+regions:
+  - ap-south-1
+
+filters:
+  instance-state-name: running
+
+hostnames:
+  - dns-name
+
+compose:
+  ansible_host: public_ip_address
+
+keyed_groups:
+  - key: tags.OS
+    prefix: ""
+
+groups:
+  ubuntu: tags.OS == 'ubuntu'
+  redhat: tags.OS == 'redhat'

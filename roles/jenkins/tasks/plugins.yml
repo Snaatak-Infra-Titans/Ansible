@@ -1,0 +1,38 @@
+---
+- name: Copy plugins.txt
+  copy:
+    src: "{{ plugins_file }}"
+    dest: /tmp/plugins.txt
+    mode: "0644"
+
+- name: Create Plugin Manager directory
+  file:
+    path: /opt/jenkins
+    state: directory
+    mode: "0755"
+
+- name: Download Jenkins Plugin Manager
+  get_url:
+    url: "{{ plugin_manager_url }}"
+    dest: "{{ plugin_manager_path }}"
+    mode: "0755"
+
+- name: Install Jenkins plugins
+  command: >
+    java -jar {{ plugin_manager_path }}
+    --war {{ jenkins_war }}
+    --plugin-file /tmp/plugins.txt
+    --plugin-download-directory {{ plugins_directory }}
+    --latest false
+
+- name: Start Jenkins
+  systemd:
+    name: "{{ jenkins_service_name }}"
+    enabled: true
+    state: started
+
+- name: Wait for Jenkins
+  wait_for:
+    host: localhost
+    port: 8080
+    timeout: 300
