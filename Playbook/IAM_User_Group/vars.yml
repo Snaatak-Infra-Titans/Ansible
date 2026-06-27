@@ -1,0 +1,26 @@
+iam_groups:
+  - dev
+  - management
+  - prod
+
+users:
+  - name: deepak
+    group: management
+
+  - name: shivam
+    group: dev
+
+  - name: ankita
+    group: dev
+
+  - name: versha
+    group: dev
+
+  - name: bhawna
+    group: prod
+
+  - name: gourav
+    group: prod
+
+  - name: saransh
+    group: prod
