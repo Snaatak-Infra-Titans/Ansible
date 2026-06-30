@@ -1,7 +1,219 @@
 ---
-- name: Setup SonarQube
+- name: Install and Configure SonarQube
   hosts: sonarqube
-  become: true
+  become: yes
+  gather_facts: yes
 
-  roles:
-    - sonarqube
+  vars_files:
+    - secrets.yml
+
+  vars:
+    sonar_version: "26.2.0.119303"
+    sonar_user: sonar
+    sonar_group: sonar
+
+    db_name: sonarqube
+    db_user: sonar
+    db_password: "{{ sonar_db_password }}"
+
+    install_dir: /opt/sonarqube
+    sonar_zip: /tmp/sonarqube.zip
+    sonar_url: "https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-{{ sonar_version }}.zip"
+
+  tasks:
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install required packages
+      apt:
+        name:
+          - openjdk-17-jdk
+          - postgresql
+          - postgresql-contrib
+          - python3-psycopg2
+          - unzip
+          - wget
+        state: present
+
+    - name: Start PostgreSQL
+      service:
+        name: postgresql
+        state: started
+        enabled: yes
+
+    - name: Create SonarQube database
+      become_user: postgres
+      postgresql_db:
+        name: "{{ db_name }}"
+        state: present
+
+    - name: Create SonarQube database user
+      become_user: postgres
+      postgresql_user:
+        name: "{{ db_user }}"
+        password: "{{ db_password }}"
+        state: present
+
+    - name: Grant database privileges
+      become_user: postgres
+      postgresql_privs:
+        database: "{{ db_name }}"
+        roles: "{{ db_user }}"
+        type: database
+        privs: ALL
+
+    - name: Grant schema privileges
+      become_user: postgres
+      postgresql_query:
+        db: "{{ db_name }}"
+        query: "GRANT ALL ON SCHEMA public TO {{ db_user }};"
+
+    - name: Create sonar group
+      group:
+        name: "{{ sonar_group }}"
+        state: present
+
+    - name: Create sonar user
+      user:
+        name: "{{ sonar_user }}"
+        group: "{{ sonar_group }}"
+        shell: /bin/bash
+        create_home: yes
+
+    - name: Download SonarQube
+      get_url:
+        url: "{{ sonar_url }}"
+        dest: "{{ sonar_zip }}"
+
+    - name: Extract SonarQube
+      unarchive:
+        src: "{{ sonar_zip }}"
+        dest: /opt
+        remote_src: yes
+
+    - name: Rename SonarQube directory
+      command: mv /opt/sonarqube-{{ sonar_version }} {{ install_dir }}
+      args:
+        creates: "{{ install_dir }}"
+
+    - name: Set ownership
+      file:
+        path: "{{ install_dir }}"
+        owner: "{{ sonar_user }}"
+        group: "{{ sonar_group }}"
+        recurse: yes
+
+    - name: Configure SonarQube JDBC URL
+      lineinfile:
+        path: "{{ install_dir }}/conf/sonar.properties"
+        regexp: '^sonar.jdbc.url='
+        line: "sonar.jdbc.url=jdbc:postgresql://localhost:5432/{{ db_name }}"
+
+    - name: Configure SonarQube JDBC Username
+      lineinfile:
+        path: "{{ install_dir }}/conf/sonar.properties"
+        regexp: '^sonar.jdbc.username='
+        line: "sonar.jdbc.username={{ db_user }}"
+
+    - name: Configure SonarQube JDBC Password
+      lineinfile:
+        path: "{{ install_dir }}/conf/sonar.properties"
+        regexp: '^sonar.jdbc.password='
+        line: "sonar.jdbc.password={{ db_password }}"
+
+    - name: Configure SonarQube Host
+      lineinfile:
+        path: "{{ install_dir }}/conf/sonar.properties"
+        regexp: '^sonar.web.host='
+        line: "sonar.web.host=0.0.0.0"
+
+    - name: Configure SonarQube Port
+      lineinfile:
+        path: "{{ install_dir }}/conf/sonar.properties"
+        regexp: '^sonar.web.port='
+        line: "sonar.web.port=9000"
+
+    - name: Configure vm.max_map_count
+      sysctl:
+        name: vm.max_map_count
+        value: "524288"
+        state: present
+        reload: yes
+
+    - name: Configure fs.file-max
+      sysctl:
+        name: fs.file-max
+        value: "131072"
+        state: present
+        reload: yes
+
+    - name: Configure soft nofile limit
+      lineinfile:
+        path: /etc/security/limits.conf
+        line: "sonar soft nofile 131072"
+        state: present
+
+    - name: Configure hard nofile limit
+      lineinfile:
+        path: /etc/security/limits.conf
+        line: "sonar hard nofile 131072"
+        state: present
+
+    - name: Configure soft nproc limit
+      lineinfile:
+        path: /etc/security/limits.conf
+        line: "sonar soft nproc 8192"
+        state: present
+
+    - name: Configure hard nproc limit
+      lineinfile:
+        path: /etc/security/limits.conf
+        line: "sonar hard nproc 8192"
+        state: present
+
+    - name: Create SonarQube systemd service
+      copy:
+        dest: /etc/systemd/system/sonarqube.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=SonarQube Service
+          After=network.target postgresql.service
+
+          [Service]
+          Type=forking
+          User=sonar
+          Group=sonar
+
+          ExecStart=/opt/sonarqube/bin/linux-x86-64/sonar.sh start
+          ExecStop=/opt/sonarqube/bin/linux-x86-64/sonar.sh stop
+
+          Restart=always
+          LimitNOFILE=131072
+          LimitNPROC=8192
+
+          [Install]
+          WantedBy=multi-user.target
+          
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable SonarQube service
+      systemd:
+        name: sonarqube
+        enabled: yes
+
+    - name: Start SonarQube service
+      systemd:
+        name: sonarqube
+        state: started
+
+    - name: Wait for SonarQube to start
+      wait_for:
+        port: 9000
+        delay: 10
+        timeout: 300
+    
