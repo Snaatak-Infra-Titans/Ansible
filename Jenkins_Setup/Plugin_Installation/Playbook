@@ -5,45 +5,28 @@
 
   vars:
     plugins:
-      # Source Code Management
+     
       - git
       - github
       - github-branch-source
       - pipeline
       - workflow-aggregator
       - workflow-cps-global-lib
-
-      # Credentials & Authentication
       - credentials
       - credentials-binding
       - ssh-credentials
       - plain-credentials
-
-      # Static Code Analysis
       - sonar
       - jacoco
       - junit
-
-      # Security Scanning
       - dependency-check-jenkins-plugin
-
-      # Notifications
       - email-ext
       - slack
-
-      # Build Tools
       - ansicolor
       - timestamper
       - ws-cleanup
-
-      # Reports
       - htmlpublisher
-
-      # Pipeline Utilities
       - pipeline-utility-steps
-
-      # SSH Deployment
-      - ssh-agent
 
   tasks:
     - name: Install Jenkins plugins
