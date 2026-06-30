@@ -33,7 +33,7 @@
       community.general.jenkins_plugin:
         name: "{{ item }}"
         state: present
-        url: "http://jenkins-ip:8080"
+        url: "http://192.168.8.210:8080"
         url_username: "deepak"
         url_password: "{{ jenkins_admin_password }}"
       loop: "{{ plugins }}"
