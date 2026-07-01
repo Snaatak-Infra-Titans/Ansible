@@ -2,10 +2,10 @@
 - name: Install Jenkins Plugins
   hosts: jenkins
   gather_facts: false
+  become: true
 
   vars:
     plugins:
-     
       - git
       - github
       - github-branch-source
@@ -33,7 +33,7 @@
       community.general.jenkins_plugin:
         name: "{{ item }}"
         state: present
-        url: "http://192.168.8.210:8080"
+        url: "http://13.201.102.62:8080"
         url_username: "deepak"
         url_password: "{{ jenkins_admin_password }}"
       loop: "{{ plugins }}"
