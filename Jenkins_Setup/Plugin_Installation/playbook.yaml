@@ -1,0 +1,39 @@
+---
+- name: Install Jenkins Plugins
+  hosts: jenkins
+  gather_facts: false
+  become: true
+
+  vars:
+    plugins:
+      - git
+      - github
+      - github-branch-source
+      - pipeline
+      - workflow-aggregator
+      - workflow-cps-global-lib
+      - credentials
+      - credentials-binding
+      - ssh-credentials
+      - plain-credentials
+      - sonar
+      - jacoco
+      - junit
+      - dependency-check-jenkins-plugin
+      - email-ext
+      - slack
+      - ansicolor
+      - timestamper
+      - ws-cleanup
+      - htmlpublisher
+      - pipeline-utility-steps
+
+  tasks:
+    - name: Install Jenkins plugins
+      community.general.jenkins_plugin:
+        name: "{{ item }}"
+        state: present
+        url: "http://13.201.102.62:8080"
+        url_username: "deepak"
+        url_password: "{{ jenkins_admin_password }}"
+      loop: "{{ plugins }}"
