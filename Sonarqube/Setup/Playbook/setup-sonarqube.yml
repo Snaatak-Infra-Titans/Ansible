@@ -8,7 +8,7 @@
     - secrets.yml
 
   vars:
-    sonar_version: "26.2.0.119303"
+    sonar_version: "25.7.0.110598"
     sonar_user: sonar
     sonar_group: sonar
 
@@ -25,6 +25,7 @@
     - name: Update apt cache
       apt:
         update_cache: yes
+      ignore_errors: yes
 
     - name: Install required packages
       apt:
