@@ -1,0 +1,53 @@
+---
+- name: Install and Configure Jenkins
+  hosts: jenkins
+  become: yes
+
+  tasks:
+
+    - name: Update apt package cache
+      apt:
+        update_cache: yes
+
+    - name: Install Java
+      apt:
+        name: openjdk-17-jdk
+        state: present
+
+    - name: Add Jenkins GPG key
+      apt_key:
+        url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+        state: present
+
+    - name: Add Jenkins repository
+      apt_repository:
+        repo: "deb https://pkg.jenkins.io/debian-stable binary/"
+        state: present
+
+    - name: Update apt cache after adding Jenkins repository
+      apt:
+        update_cache: yes
+
+    - name: Install Jenkins
+      apt:
+        name: jenkins
+        state: present
+
+    - name: Enable Jenkins service
+      service:
+        name: jenkins
+        enabled: yes
+
+    - name: Start Jenkins service
+      service:
+        name: jenkins
+        state: started
+
+    - name: Verify Jenkins service
+      command: systemctl is-active jenkins
+      register: jenkins_status
+      changed_when: false
+
+    - name: Display Jenkins status
+      debug:
+        msg: "Jenkins service is {{ jenkins_status.stdout }}"
