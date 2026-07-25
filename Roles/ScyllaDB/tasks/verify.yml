@@ -17,6 +17,8 @@
   ansible.builtin.shell: ss -lnt | grep ':9042'
   register: scylla_port
   changed_when: false
+  args:
+  executable: /bin/bash
 
 - name: Display listening port
   ansible.builtin.debug:
