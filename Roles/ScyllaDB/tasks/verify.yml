@@ -18,7 +18,7 @@
   register: scylla_port
   changed_when: false
   args:
-  executable: /bin/bash
+    executable: /bin/bash
 
 - name: Display listening port
   ansible.builtin.debug:
