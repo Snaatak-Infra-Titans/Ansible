@@ -9,7 +9,7 @@ scylla_seed_nodes: "{{ ansible_facts.default_ipv4.address }}"
 
 scylla_listen_address: "{{ ansible_facts.default_ipv4.address }}"
 
-scylla_rpc_address: "0.0.0.0"
+scylla_rpc_address: "{{ ansible_facts.default_ipv4.address }}"
 
 scylla_api_port: 10000
 
