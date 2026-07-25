@@ -1,0 +1,44 @@
+# -----------------------------
+# Cluster Configuration
+# -----------------------------
+cluster_name: "{{ scylla_cluster_name }}"
+
+# -----------------------------
+# Seed Provider
+# -----------------------------
+seed_provider:
+  - class_name: org.apache.cassandra.locator.SimpleSeedProvider
+    parameters:
+      - seeds: "{{ scylla_seed_nodes }}"
+
+# -----------------------------
+# Network Configuration
+# -----------------------------
+listen_address: {{ scylla_listen_address }}
+
+rpc_address: {{ scylla_rpc_address }}
+
+native_transport_port: {{ scylla_native_transport_port }}
+
+api_address: {{ scylla_rpc_address }}
+
+api_port: {{ scylla_api_port }}
+
+# -----------------------------
+# Developer Mode
+# -----------------------------
+developer_mode: {{ scylla_developer_mode | lower }}
+
+# -----------------------------
+# Snitch
+# -----------------------------
+endpoint_snitch: {{ scylla_endpoint_snitch }}
+
+# -----------------------------
+# Timeouts
+# -----------------------------
+read_request_timeout_in_ms: {{ scylla_read_timeout }}
+
+write_request_timeout_in_ms: {{ scylla_write_timeout }}
+
+cas_contention_timeout_in_ms: {{ scylla_cas_timeout }}
