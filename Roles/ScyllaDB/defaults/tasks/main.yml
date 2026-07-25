@@ -1,0 +1,12 @@
+---
+- name: Install ScyllaDB
+  import_tasks: install.yml
+
+- name: Configure ScyllaDB
+  import_tasks: configure.yml
+
+- name: Enable and Start ScyllaDB Service
+  import_tasks: service.yml
+
+- name: Verify ScyllaDB Installation
+  import_tasks: verify.yml
