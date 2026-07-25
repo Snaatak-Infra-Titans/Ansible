@@ -1,0 +1,10 @@
+---
+- name: Deploy ScyllaDB configuration file
+  ansible.builtin.template:
+    src: scylla.yaml.j2
+    dest: /etc/scylla/scylla.yaml
+    owner: root
+    group: root
+    mode: '0644'
+    backup: true
+  notify: Restart ScyllaDB
