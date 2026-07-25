@@ -1,0 +1,39 @@
+---
+- name: Update APT package cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install prerequisite packages
+  ansible.builtin.apt:
+    name:
+      - curl
+      - wget
+      - gnupg
+      - apt-transport-https
+      - ca-certificates
+    state: present
+
+- name: Create APT keyrings directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Download ScyllaDB GPG key
+  ansible.builtin.get_url:
+    url: "{{ scylla_gpg_key_url }}"
+    dest: /etc/apt/keyrings/scylladb.gpg
+    mode: '0644'
+
+- name: Configure ScyllaDB repository
+  ansible.builtin.apt_repository:
+    repo: "{{ scylla_repo }}"
+    filename: scylla
+    state: present
+    update_cache: true
+
+- name: Install ScyllaDB
+  ansible.builtin.apt:
+    name: "{{ scylla_package }}"
+    state: present
