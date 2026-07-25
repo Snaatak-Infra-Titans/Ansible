@@ -3,6 +3,8 @@ scylla_package: scylla
 
 scylla_cluster_name: "OTMS-Cluster"
 
+scylla_service_name: "scylla-server"
+
 scylla_seed_nodes: "{{ ansible_facts.default_ipv4.address }}"
 
 scylla_listen_address: "{{ ansible_facts.default_ipv4.address }}"
