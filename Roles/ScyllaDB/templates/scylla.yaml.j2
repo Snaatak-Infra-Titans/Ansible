@@ -136,13 +136,13 @@ native_shard_aware_transport_port: 19042
 #native_shard_aware_transport_port_ssl: 19142
 
 # How long the coordinator should wait for read operations to complete
-read_request_timeout_in_ms: 5000
+read_request_timeout_in_ms: {{ scylla_read_timeout }}
 
 # How long the coordinator should wait for writes to complete
-write_request_timeout_in_ms: 2000
+write_request_timeout_in_ms: {{ scylla_write_timeout }}
 # how long a coordinator should continue to retry a CAS operation
 # that contends with other proposals for the same row
-cas_contention_timeout_in_ms: 1000
+cas_contention_timeout_in_ms: {{ scylla_cas_timeout }}
 
 # phi value that must be reached for a host to be marked down.
 # most users should never need to adjust this.
@@ -197,7 +197,7 @@ cas_contention_timeout_in_ms: 1000
 #
 # You can use a custom Snitch by setting this to the full class name
 # of the snitch, which will be assumed to be on your classpath.
-endpoint_snitch: SimpleSnitch
+endpoint_snitch: "{{ scylla_endpoint_snitch }}"
 
 # The address or interface to bind the native transport server to.
 #
