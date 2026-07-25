@@ -1,0 +1,10 @@
+---
+- name: Enable ScyllaDB service
+  ansible.builtin.systemd:
+    name: "{{ scylla_service_name }}"
+    enabled: true
+
+- name: Start ScyllaDB service
+  ansible.builtin.systemd:
+    name: "{{ scylla_service_name }}"
+    state: started
