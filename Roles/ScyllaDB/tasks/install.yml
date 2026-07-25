@@ -10,27 +10,25 @@
       - curl
       - wget
       - gnupg
-      - apt-transport-https
       - ca-certificates
+      - apt-transport-https
+      - lsb-release
     state: present
 
-- name: Create APT keyrings directory
-  ansible.builtin.file:
-    path: /etc/apt/keyrings
-    state: directory
-    mode: '0755'
-
-- name: Download ScyllaDB GPG key
+- name: Download ScyllaDB repository setup script
   ansible.builtin.get_url:
-    url: "{{ scylla_gpg_key_url }}"
-    dest: /etc/apt/keyrings/scylladb.gpg
-    mode: '0644'
+    url: "https://repositories.scylladb.com/scylla/check_version?system={{ ansible_distribution | lower }}&dist={{ ansible_distribution_release }}&version={{ scylla_version }}"
+    dest: /tmp/scylla_repo.sh
+    mode: "0755"
 
 - name: Configure ScyllaDB repository
-  ansible.builtin.apt_repository:
-    repo: "{{ scylla_repo }}"
-    filename: scylla
-    state: present
+  ansible.builtin.command:
+    cmd: /tmp/scylla_repo.sh
+  args:
+    creates: /etc/apt/sources.list.d/scylla.list
+
+- name: Update apt cache
+  ansible.builtin.apt:
     update_cache: true
 
 - name: Install ScyllaDB
