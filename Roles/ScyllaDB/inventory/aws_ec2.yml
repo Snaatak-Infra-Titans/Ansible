@@ -1,0 +1,31 @@
+---
+plugin: amazon.aws.aws_ec2
+
+regions:
+  - us-east-1
+
+filters:
+  "tag:Name": "dev-otms-scylla-ec2"
+  instance-state-name: running
+
+hostnames:
+  - private-ip-address
+
+compose:
+  ansible_host: private_ip_address
+
+groups:
+  scylladb: true
+
+keyed_groups:
+  - prefix: environment
+    key: tags.Environment
+
+  - prefix: application
+    key: tags.Application
+
+  - prefix: subnet
+    key: tags.Tier
+
+  - prefix: owner
+    key: tags.Owner
