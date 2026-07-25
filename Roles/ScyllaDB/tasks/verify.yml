@@ -1,10 +1,4 @@
 ---
-- name: Wait for ScyllaDB native transport port
-  ansible.builtin.wait_for:
-    port: "{{ scylla_native_transport_port }}"
-    timeout: 180
-    delay: 5
-    
 - name: Verify ScyllaDB service is running
   ansible.builtin.systemd:
     name: "{{ scylla_service_name }}"
@@ -18,3 +12,21 @@
   ansible.builtin.fail:
     msg: "ScyllaDB service is not running."
   when: scylla_service_status.status.ActiveState != "active"
+
+- name: Verify ScyllaDB is listening on port 9042
+  ansible.builtin.shell: ss -lnt | grep ':9042'
+  register: scylla_port
+  changed_when: false
+
+- name: Display listening port
+  ansible.builtin.debug:
+    var: scylla_port.stdout
+
+- name: Verify ScyllaDB version
+  ansible.builtin.command: scylla --version
+  register: scylla_version
+  changed_when: false
+
+- name: Display ScyllaDB version
+  ansible.builtin.debug:
+    var: scylla_version.stdout
