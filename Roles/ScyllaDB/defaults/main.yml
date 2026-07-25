@@ -1,34 +1,24 @@
 ---
-# ScyllaDB Repository
-scylla_repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/scylladb.gpg] https://downloads.scylladb.com/downloads/scylla/deb/debian-ubuntu/scylladb-2026.1 stable main"
+scylla_version: "2026.1"
 
-scylla_gpg_key_url: "https://downloads.scylladb.com/downloads/scylla/deb/debian-ubuntu/scylladb-2026.1/scylladb.gpg"
-
-# Package
 scylla_package: "scylla"
 
-# Cluster Configuration
-scylla_cluster_name: "OTMS-Scylla-Cluster"
+scylla_cluster_name: OTMS-Cluster
 
-# Network Configuration
-scylla_listen_address: "{{ ansible_default_ipv4.address }}"
-scylla_rpc_address: "{{ ansible_default_ipv4.address }}"
 scylla_seed_nodes: "{{ ansible_default_ipv4.address }}"
 
-# Ports
-scylla_native_transport_port: 9042
+scylla_listen_address: "{{ ansible_default_ipv4.address }}"
+
+scylla_rpc_address: "0.0.0.0"
+
 scylla_api_port: 10000
 
-# Service
-scylla_service_name: "scylla-server"
+scylla_native_transport_port: 9042
 
-# Developer Mode
-scylla_developer_mode: true
+scylla_endpoint_snitch: SimpleSnitch
 
-# Snitch
-scylla_endpoint_snitch: "SimpleSnitch"
-
-# Timeouts
 scylla_read_timeout: 5000
+
 scylla_write_timeout: 2000
+
 scylla_cas_timeout: 1000
