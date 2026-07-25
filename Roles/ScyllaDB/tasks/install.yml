@@ -33,6 +33,7 @@
         | gpg --dearmor \
         > /etc/apt/keyrings/scylladb.gpg
   args:
+    executable: /bin/bash
     creates: /etc/apt/keyrings/scylladb.gpg
 
 - name: Download ScyllaDB repository file
