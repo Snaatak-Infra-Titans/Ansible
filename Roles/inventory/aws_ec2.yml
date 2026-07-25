@@ -12,7 +12,9 @@ hostnames:
   - private-ip-address
 
 compose:
-  ansible_host: private_ip_address
+  ansible_host: instance_id
+  ansible_connection: amazon.aws.aws_ssm
+  ansible_user: ubuntu
 
 groups:
   scylladb: true
