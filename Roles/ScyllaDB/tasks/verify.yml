@@ -1,7 +1,6 @@
 ---
 - name: Wait for ScyllaDB native transport port
   ansible.builtin.wait_for:
-    host: "{{ scylla_listen_address }}"
     port: "{{ scylla_native_transport_port }}"
     delay: 10
     timeout: 120
