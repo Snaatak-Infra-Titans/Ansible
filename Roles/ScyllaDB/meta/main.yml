@@ -1,7 +1,7 @@
 ---
 galaxy_info:
   author: Mukesh Kharb
-  description: Ansible role to install and configure ScyllaDB
+  description: Ansible role to install and configure Scylladb
   company: MyGurukulam
   license: MIT
   min_ansible_version: "2.15"
