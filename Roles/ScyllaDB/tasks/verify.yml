@@ -2,9 +2,9 @@
 - name: Wait for ScyllaDB native transport port
   ansible.builtin.wait_for:
     port: "{{ scylla_native_transport_port }}"
-    delay: 10
-    timeout: 120
-
+    timeout: 180
+    delay: 5
+    
 - name: Verify ScyllaDB service is running
   ansible.builtin.systemd:
     name: "{{ scylla_service_name }}"
