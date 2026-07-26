@@ -1,114 +1,86 @@
 ---
-- name: Install and Configure Redis Server
-
+- name: Install and Configure Redis
   hosts: redis
-
   become: true
 
-  gather_facts: true
-
   vars:
-    ansible_connection: amazon.aws.aws_ssm
-    ansible_aws_ssm_bucket_name: dev-otms-ansible-ssm
-    ansible_aws_ssm_region: us-east-1
-
-    redis_package: redis-server
-    redis_service: redis-server
-    redis_port: 6379
     redis_bind: "0.0.0.0"
-    redis_protected_mode: "yes"
-    redis_appendonly: "yes"
-    redis_appendfsync: everysec
-    redis_maxmemory: "256mb"
-    redis_maxmemory_policy: allkeys-lru
+    redis_port: 6379
 
   tasks:
 
     - name: Update apt cache
-      ansible.builtin.apt:
+      apt:
         update_cache: yes
         cache_valid_time: 3600
 
     - name: Install Redis
-      ansible.builtin.apt:
-        name: "{{ redis_package }}"
+      apt:
+        name: redis-server
         state: present
 
-    - name: Configure bind address
-      ansible.builtin.lineinfile:
-        path: /etc/redis/redis.conf
-        regexp: '^bind'
-        line: "bind {{ redis_bind }}"
+    - name: Ensure Redis config directory exists
+      file:
+        path: /etc/redis
+        state: directory
+        owner: redis
+        group: redis
+        mode: "0755"
 
-    - name: Configure protected mode
-      ansible.builtin.lineinfile:
-        path: /etc/redis/redis.conf
-        regexp: '^protected-mode'
-        line: "protected-mode {{ redis_protected_mode }}"
+    - name: Configure Redis
+      copy:
+        dest: /etc/redis/redis.conf
+        owner: redis
+        group: redis
+        mode: "0644"
+        content: |
+          bind {{ redis_bind }}
+          protected-mode yes
+          port {{ redis_port }}
 
-    - name: Configure Redis port
-      ansible.builtin.lineinfile:
-        path: /etc/redis/redis.conf
-        regexp: '^port'
-        line: "port {{ redis_port }}"
+          daemonize no
+          supervised systemd
 
-    - name: Enable Append Only File
-      ansible.builtin.lineinfile:
-        path: /etc/redis/redis.conf
-        regexp: '^appendonly'
-        line: "appendonly {{ redis_appendonly }}"
+          dir /var/lib/redis
 
-    - name: Configure appendfsync
-      ansible.builtin.lineinfile:
-        path: /etc/redis/redis.conf
-        regexp: '^appendfsync'
-        line: "appendfsync {{ redis_appendfsync }}"
+          loglevel notice
+          logfile ""
 
-    - name: Configure maxmemory
-      ansible.builtin.lineinfile:
-        path: /etc/redis/redis.conf
-        regexp: '^#*maxmemory '
-        line: "maxmemory {{ redis_maxmemory }}"
+          save ""
 
-    - name: Configure eviction policy
-      ansible.builtin.lineinfile:
-        path: /etc/redis/redis.conf
-        regexp: '^#*maxmemory-policy'
-        line: "maxmemory-policy {{ redis_maxmemory_policy }}"
+          appendonly no
 
-    - name: Enable Redis service
-      ansible.builtin.systemd:
-        name: "{{ redis_service }}"
+    - name: Ensure Redis data directory exists
+      file:
+        path: /var/lib/redis
+        state: directory
+        owner: redis
+        group: redis
+        mode: "0755"
+
+    - name: Restart systemd daemon
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable Redis
+      systemd:
+        name: redis-server
         enabled: yes
 
-    - name: Restart Redis
-      ansible.builtin.systemd:
-        name: "{{ redis_service }}"
-        state: restarted
+    - name: Start Redis
+      systemd:
+        name: redis-server
+        state: started
 
-    - name: Verify Redis service
-      ansible.builtin.systemd:
-        name: "{{ redis_service }}"
-      register: redis_status
+    - name: Wait for Redis
+      wait_for:
+        port: 6379
+        timeout: 30
 
-    - name: Display Redis service status
-      ansible.builtin.debug:
-        msg: "Redis service is {{ redis_status.status.ActiveState }}"
-
-    - name: Verify Redis is listening on port 6379
-      ansible.builtin.shell: ss -lnt | grep ':6379'
-      register: redis_port_status
+    - name: Verify Redis
+      command: redis-cli ping
+      register: redis_ping
       changed_when: false
 
-    - name: Display Redis port
-      ansible.builtin.debug:
-        var: redis_port_status.stdout
-
-    - name: Verify Redis version
-      ansible.builtin.command: redis-server --version
-      register: redis_version
-      changed_when: false
-
-    - name: Display Redis version
-      ansible.builtin.debug:
-        var: redis_version.stdout
+    - debug:
+        msg: "{{ redis_ping.stdout }}"
