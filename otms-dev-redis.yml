@@ -1,5 +1,5 @@
 ---
-- name: Configure Redis Server
+- name: Install and Configure Redis Server
 
   hosts: redis
 
@@ -12,5 +12,103 @@
     ansible_aws_ssm_bucket_name: dev-otms-ansible-ssm
     ansible_aws_ssm_region: us-east-1
 
-  roles:
-    - Redis
+    redis_package: redis-server
+    redis_service: redis-server
+    redis_port: 6379
+    redis_bind: "0.0.0.0"
+    redis_protected_mode: "yes"
+    redis_appendonly: "yes"
+    redis_appendfsync: everysec
+    redis_maxmemory: "256mb"
+    redis_maxmemory_policy: allkeys-lru
+
+  tasks:
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install Redis
+      ansible.builtin.apt:
+        name: "{{ redis_package }}"
+        state: present
+
+    - name: Configure bind address
+      ansible.builtin.lineinfile:
+        path: /etc/redis/redis.conf
+        regexp: '^bind'
+        line: "bind {{ redis_bind }}"
+
+    - name: Configure protected mode
+      ansible.builtin.lineinfile:
+        path: /etc/redis/redis.conf
+        regexp: '^protected-mode'
+        line: "protected-mode {{ redis_protected_mode }}"
+
+    - name: Configure Redis port
+      ansible.builtin.lineinfile:
+        path: /etc/redis/redis.conf
+        regexp: '^port'
+        line: "port {{ redis_port }}"
+
+    - name: Enable Append Only File
+      ansible.builtin.lineinfile:
+        path: /etc/redis/redis.conf
+        regexp: '^appendonly'
+        line: "appendonly {{ redis_appendonly }}"
+
+    - name: Configure appendfsync
+      ansible.builtin.lineinfile:
+        path: /etc/redis/redis.conf
+        regexp: '^appendfsync'
+        line: "appendfsync {{ redis_appendfsync }}"
+
+    - name: Configure maxmemory
+      ansible.builtin.lineinfile:
+        path: /etc/redis/redis.conf
+        regexp: '^#*maxmemory '
+        line: "maxmemory {{ redis_maxmemory }}"
+
+    - name: Configure eviction policy
+      ansible.builtin.lineinfile:
+        path: /etc/redis/redis.conf
+        regexp: '^#*maxmemory-policy'
+        line: "maxmemory-policy {{ redis_maxmemory_policy }}"
+
+    - name: Enable Redis service
+      ansible.builtin.systemd:
+        name: "{{ redis_service }}"
+        enabled: yes
+
+    - name: Restart Redis
+      ansible.builtin.systemd:
+        name: "{{ redis_service }}"
+        state: restarted
+
+    - name: Verify Redis service
+      ansible.builtin.systemd:
+        name: "{{ redis_service }}"
+      register: redis_status
+
+    - name: Display Redis service status
+      ansible.builtin.debug:
+        msg: "Redis service is {{ redis_status.status.ActiveState }}"
+
+    - name: Verify Redis is listening on port 6379
+      ansible.builtin.shell: ss -lnt | grep ':6379'
+      register: redis_port_status
+      changed_when: false
+
+    - name: Display Redis port
+      ansible.builtin.debug:
+        var: redis_port_status.stdout
+
+    - name: Verify Redis version
+      ansible.builtin.command: redis-server --version
+      register: redis_version
+      changed_when: false
+
+    - name: Display Redis version
+      ansible.builtin.debug:
+        var: redis_version.stdout
