@@ -1,0 +1,15 @@
+bind {{ redis_bind }}
+protected-mode yes
+port {{ redis_port }}
+
+daemonize no
+supervised systemd
+
+dir /var/lib/redis
+
+loglevel notice
+logfile ""
+
+save ""
+
+appendonly no
