@@ -1,0 +1,10 @@
+---
+- name: Enable Redis service
+  ansible.builtin.systemd:
+    name: "{{ redis_service_name }}"
+    enabled: true
+
+- name: Start Redis service
+  ansible.builtin.systemd:
+    name: "{{ redis_service_name }}"
+    state: started
