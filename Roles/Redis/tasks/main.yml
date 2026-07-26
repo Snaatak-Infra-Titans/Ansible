@@ -2,9 +2,6 @@
 - name: Install Redis
   ansible.builtin.import_tasks: install.yml
 
-- name: Configure Redis
-  ansible.builtin.import_tasks: configure.yml
-
 - name: Enable and Start Redis Service
   ansible.builtin.import_tasks: service.yml
 
