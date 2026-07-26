@@ -1,0 +1,162 @@
+---
+- name: Configure ScyllaDB Server
+  hosts: scylladb
+  become: true
+  gather_facts: true
+
+  vars:
+    ansible_connection: amazon.aws.aws_ssm
+    ansible_aws_ssm_bucket_name: dev-otms-ansible-ssm
+    ansible_aws_ssm_region: us-east-1
+
+    scylla_package: scylla
+    scylla_service_name: scylla-server
+
+    scylla_cluster_name: "OTMS-Cluster"
+    scylla_seed_nodes: "{{ ansible_facts.default_ipv4.address }}"
+    scylla_listen_address: "{{ ansible_facts.default_ipv4.address }}"
+    scylla_rpc_address: "{{ ansible_facts.default_ipv4.address }}"
+    scylla_endpoint_snitch: "SimpleSnitch"
+    scylla_developer_mode: true
+
+    scylla_native_transport_port: 9042
+    scylla_api_port: 10000
+
+  handlers:
+    - name: Restart ScyllaDB
+      ansible.builtin.systemd:
+        name: "{{ scylla_service_name }}"
+        state: restarted
+
+  tasks:
+    - name: Update APT package cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install prerequisite packages
+      ansible.builtin.apt:
+        name:
+          - gnupg
+          - wget
+          - curl
+        state: present
+
+    - name: Create APT keyrings directory
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Import ScyllaDB signing key
+      ansible.builtin.shell: |
+        gpg --homedir /tmp \
+            --no-default-keyring \
+            --keyring /tmp/temp.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 \
+            --recv-keys C503C686B007F39E
+
+        gpg --homedir /tmp \
+            --no-default-keyring \
+            --keyring /tmp/temp.gpg \
+            --export --armor C503C686B007F39E \
+            | gpg --dearmor \
+            > /etc/apt/keyrings/scylladb.gpg
+      args:
+        executable: /bin/bash
+        creates: /etc/apt/keyrings/scylladb.gpg
+
+    - name: Download ScyllaDB repository file
+      ansible.builtin.get_url:
+        url: "https://downloads.scylladb.com/deb/debian/scylla-2026.1.list"
+        dest: /etc/apt/sources.list.d/scylla.list
+        mode: "0644"
+
+    - name: Update APT cache
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Install ScyllaDB
+      ansible.builtin.apt:
+        name: "{{ scylla_package }}"
+        state: present
+
+    - name: Set cluster name
+      ansible.builtin.lineinfile:
+        path: /etc/scylla/scylla.yaml
+        regexp: '^cluster_name:'
+        line: 'cluster_name: "{{ scylla_cluster_name }}"'
+
+    - name: Set seed nodes
+      ansible.builtin.lineinfile:
+        path: /etc/scylla/scylla.yaml
+        regexp: '^\s*- seeds:'
+        line: '          - seeds: "{{ scylla_seed_nodes }}"'
+
+    - name: Set listen address
+      ansible.builtin.lineinfile:
+        path: /etc/scylla/scylla.yaml
+        regexp: '^listen_address:'
+        line: 'listen_address: "{{ scylla_listen_address }}"'
+
+    - name: Set rpc address
+      ansible.builtin.lineinfile:
+        path: /etc/scylla/scylla.yaml
+        regexp: '^rpc_address:'
+        line: 'rpc_address: "{{ scylla_rpc_address }}"'
+
+    - name: Set endpoint snitch
+      ansible.builtin.lineinfile:
+        path: /etc/scylla/scylla.yaml
+        regexp: '^endpoint_snitch:'
+        line: 'endpoint_snitch: "{{ scylla_endpoint_snitch }}"'
+
+    - name: Enable developer mode
+      ansible.builtin.lineinfile:
+        path: /etc/scylla/scylla.yaml
+        regexp: '^developer_mode:'
+        line: 'developer_mode: {{ scylla_developer_mode | lower }}'
+
+    - name: Enable ScyllaDB service
+      ansible.builtin.systemd:
+        name: "{{ scylla_service_name }}"
+        enabled: true
+
+    - name: Start ScyllaDB service
+      ansible.builtin.systemd:
+        name: "{{ scylla_service_name }}"
+        state: started
+
+    - name: Verify ScyllaDB service is running
+      ansible.builtin.systemd:
+        name: "{{ scylla_service_name }}"
+      register: scylla_service_status
+
+    - name: Display ScyllaDB service status
+      ansible.builtin.debug:
+        msg: "ScyllaDB service is {{ scylla_service_status.status.ActiveState }}"
+
+    - name: Fail if ScyllaDB service is not running
+      ansible.builtin.fail:
+        msg: "ScyllaDB service is not running."
+      when: scylla_service_status.status.ActiveState != "active"
+
+    - name: Verify ScyllaDB is listening on port 9042
+      ansible.builtin.shell: ss -lnt | grep ':9042'
+      register: scylla_port
+      changed_when: false
+      args:
+        executable: /bin/bash
+
+    - name: Display listening port
+      ansible.builtin.debug:
+        var: scylla_port.stdout
+
+    - name: Verify ScyllaDB version
+      ansible.builtin.command: scylla --version
+      register: scylla_version
+      changed_when: false
+
+    - name: Display ScyllaDB version
+      ansible.builtin.debug:
+        var: scylla_version.stdout
