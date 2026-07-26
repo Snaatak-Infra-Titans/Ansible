@@ -1,0 +1,34 @@
+---
+- name: Verify Redis service is running
+  ansible.builtin.systemd:
+    name: "{{ redis_service_name }}"
+  register: redis_service_status
+
+- name: Display Redis service status
+  ansible.builtin.debug:
+    msg: "Redis service is {{ redis_service_status.status.ActiveState }}"
+
+- name: Fail if Redis service is not running
+  ansible.builtin.fail:
+    msg: "Redis service is not running."
+  when: redis_service_status.status.ActiveState != "active"
+
+- name: Verify Redis is listening on port 6379
+  ansible.builtin.shell: ss -lnt | grep ':6379'
+  register: redis_port_status
+  changed_when: false
+  args:
+    executable: /bin/bash
+
+- name: Display Redis listening port
+  ansible.builtin.debug:
+    var: redis_port_status.stdout
+
+- name: Verify Redis version
+  ansible.builtin.command: redis-server --version
+  register: redis_version
+  changed_when: false
+
+- name: Display Redis version
+  ansible.builtin.debug:
+    var: redis_version.stdout
