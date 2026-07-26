@@ -10,7 +10,7 @@ tcp-keepalive {{ redis_tcp_keepalive }}
 
 loglevel {{ redis_loglevel }}
 
-logfile {{ redis_logfile }}
+logfile "{{ redis_logfile }}"
 
 appendonly {{ redis_appendonly }}
 
