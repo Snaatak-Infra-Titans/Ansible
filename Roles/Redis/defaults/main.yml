@@ -23,4 +23,4 @@ redis_requirepass: ""
 
 # Logging
 redis_loglevel: notice
-redis_logfile: ""
+redis_logfile: "/var/log/redis/redis-server.log"
