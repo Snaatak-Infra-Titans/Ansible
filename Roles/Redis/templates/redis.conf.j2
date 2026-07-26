@@ -1,0 +1,25 @@
+bind {{ redis_bind }}
+
+protected-mode {{ redis_protected_mode }}
+
+port {{ redis_port }}
+
+timeout {{ redis_timeout }}
+
+tcp-keepalive {{ redis_tcp_keepalive }}
+
+loglevel {{ redis_loglevel }}
+
+logfile {{ redis_logfile }}
+
+appendonly {{ redis_appendonly }}
+
+appendfsync {{ redis_appendfsync }}
+
+maxmemory {{ redis_maxmemory }}
+
+maxmemory-policy {{ redis_maxmemory_policy }}
+
+{% if redis_requirepass != "" %}
+requirepass {{ redis_requirepass }}
+{% endif %}
