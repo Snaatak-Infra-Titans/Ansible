@@ -1,0 +1,14 @@
+---
+# Environment-specific configuration for Dev environment
+env_name: "dev"
+postgres_version: "16"
+postgres_port: 5432
+postgres_listen_addresses: "*"
+postgres_allowed_hosts: "10.0.0.0/24"
+postgres_max_connections: 150
+postgres_shared_buffers: "256MB"
+
+# Database and User setup
+postgres_db: "attendance_db"
+postgres_user: "postgres"
+postgres_password: "password"
