@@ -1,82 +1,24 @@
 ---
-- name: Discover OTMS PostgreSQL EC2 instances
-  hosts: localhost
-  connection: local
-  gather_facts: false
-  become: false
-
-  vars_files:
-    - vars/dev.yml
-
-  tasks:
-    - name: Find running EC2 instances using OTMS tags
-      amazon.aws.ec2_instance_info:
-        region: "{{ aws_region }}"
-        filters:
-          "tag:Environment": "{{ target_environment }}"
-          "tag:Name": "{{ target_name }}"
-          instance-state-name:
-            - running
-      register: postgresql_ec2
-
-    - name: Stop when no matching instance exists
-      ansible.builtin.assert:
-        that:
-          - postgresql_ec2.instances | length > 0
-        fail_msg: >-
-          No running EC2 instance found with
-          Environment={{ target_environment }},
-          Name={{ target_name }},
-          Region={{ aws_region }}.
-        success_msg: >-
-          Found {{ postgresql_ec2.instances | length }}
-          matching PostgreSQL EC2 instance(s).
-
-    - name: Add discovered instances to temporary Ansible inventory
-      ansible.builtin.add_host:
-        name: "{{ item.instance_id }}"
-        groups: postgresql_targets
-
-        ansible_connection: amazon.aws.aws_ssm
-        ansible_aws_ssm_region: "{{ aws_region }}"
-        ansible_aws_ssm_bucket_name: "{{ ssm_bucket }}"
-        ansible_aws_ssm_timeout: "{{ ssm_connection_timeout }}"
-        ansible_aws_ssm_retries: "{{ ssm_connection_retries }}"
-        ansible_shell_type: sh
-
-      loop: "{{ postgresql_ec2.instances }}"
-
-      loop_control:
-        label: "{{ item.instance_id }}"
-
-
-- name: Install and configure PostgreSQL
-  hosts: postgresql_targets
-  gather_facts: false
+- name: Configure PostgreSQL Server
+  hosts: postgresql
   become: true
+  gather_facts: true
 
   vars_files:
-    - vars/dev.yml
+    - "{{ playbook_dir }}/vars/dev.yml"
 
-  pre_tasks:
-    - name: Bootstrap curl and Python on blank Ubuntu instance
-      ansible.builtin.raw: |
-        if ! command -v curl >/dev/null 2>&1 || \
-           ! command -v python3 >/dev/null 2>&1; then
-          apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            curl \
-            python3 \
-            python3-apt
-        fi
-      changed_when: false
-
-    - name: Wait until instance accepts Ansible connections
-      ansible.builtin.wait_for_connection:
-        timeout: 300
-        sleep: 10
+  handlers:
+    - name: Restart PostgreSQL
+      ansible.builtin.systemd:
+        name: "{{ postgresql_service_name }}"
+        state: restarted
 
   tasks:
+    - name: Update APT package cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
     - name: Install PostgreSQL packages
       ansible.builtin.apt:
         name:
@@ -84,20 +26,18 @@
           - "postgresql-{{ postgresql_version }}"
           - "postgresql-client-{{ postgresql_version }}"
         state: present
-        update_cache: true
-        cache_valid_time: 3600
 
-    - name: Enable and start PostgreSQL
-      ansible.builtin.service:
-        name: postgresql
-        state: started
+    - name: Enable and start PostgreSQL service
+      ansible.builtin.systemd:
+        name: "{{ postgresql_service_name }}"
         enabled: true
+        state: started
 
-    - name: Listen on all network interfaces
+    - name: Configure PostgreSQL listen addresses
       ansible.builtin.lineinfile:
         path: "{{ postgresql_conf }}"
         regexp: '^\s*#?\s*listen_addresses\s*='
-        line: "listen_addresses = '*'"
+        line: "listen_addresses = '{{ postgresql_listen_addresses }}'"
         backup: true
       notify: Restart PostgreSQL
 
@@ -108,11 +48,11 @@
         line: "port = {{ postgresql_port }}"
       notify: Restart PostgreSQL
 
-    - name: Configure SCRAM password encryption
+    - name: Configure PostgreSQL password encryption
       ansible.builtin.lineinfile:
         path: "{{ postgresql_conf }}"
         regexp: '^\s*#?\s*password_encryption\s*='
-        line: "password_encryption = 'scram-sha-256'"
+        line: "password_encryption = '{{ postgresql_auth_method }}'"
       notify: Restart PostgreSQL
 
     - name: Allow attendance database access from OTMS VPC
@@ -120,7 +60,7 @@
         path: "{{ postgresql_hba }}"
         marker: "# {mark} ANSIBLE MANAGED OTMS POSTGRESQL ACCESS"
         block: |
-          host    {{ postgresql_database }}    {{ postgresql_user }}    {{ postgresql_allowed_cidr }}    scram-sha-256
+          host    {{ postgresql_database }}    {{ postgresql_user }}    {{ postgresql_allowed_cidr }}    {{ postgresql_auth_method }}
       notify: Restart PostgreSQL
 
     - name: Apply PostgreSQL configuration changes
@@ -131,26 +71,22 @@
         argv:
           - psql
           - -c
-          - >-
-            ALTER USER {{ postgresql_user }}
-            WITH PASSWORD '{{ postgresql_password }}';
+          - "ALTER USER {{ postgresql_user }} WITH PASSWORD '{{ postgresql_password }}';"
       become_user: postgres
       no_log: true
       changed_when: false
 
-    - name: Check whether PostgreSQL database exists
+    - name: Check whether attendance database exists
       ansible.builtin.command:
         argv:
           - psql
           - -tAc
-          - >-
-            SELECT 1 FROM pg_database
-            WHERE datname='{{ postgresql_database }}';
+          - "SELECT 1 FROM pg_database WHERE datname='{{ postgresql_database }}';"
       become_user: postgres
       register: postgresql_database_check
       changed_when: false
 
-    - name: Create PostgreSQL database
+    - name: Create attendance database
       ansible.builtin.command:
         argv:
           - createdb
@@ -159,31 +95,52 @@
       become_user: postgres
       when: postgresql_database_check.stdout | trim != "1"
 
-    - name: Verify PostgreSQL configuration
+    - name: Verify PostgreSQL service is running
+      ansible.builtin.systemd:
+        name: "{{ postgresql_service_name }}"
+      register: postgresql_service_status
+
+    - name: Fail when PostgreSQL service is not running
+      ansible.builtin.fail:
+        msg: PostgreSQL service is not running.
+      when: postgresql_service_status.status.ActiveState != "active"
+
+    - name: Verify PostgreSQL is accepting connections
+      ansible.builtin.command:
+        argv:
+          - pg_isready
+          - -h
+          - 127.0.0.1
+          - -p
+          - "{{ postgresql_port | string }}"
+      register: postgresql_ready
+      changed_when: false
+
+    - name: Verify PostgreSQL listener
+      ansible.builtin.shell: |
+        set -o pipefail
+        ss -lnt | grep -E '0\.0\.0\.0:{{ postgresql_port }}|\[::\]:{{ postgresql_port }}'
+      args:
+        executable: /bin/bash
+      register: postgresql_port_status
+      changed_when: false
+
+    - name: Verify database configuration
       ansible.builtin.command:
         argv:
           - psql
           - -d
           - "{{ postgresql_database }}"
           - -tAc
-          - >-
-            SELECT current_database()
-            || ' | '
-            || current_user
-            || ' | '
-            || current_setting('listen_addresses')
-            || ':'
-            || current_setting('port');
+          - "SELECT current_database() || ' | ' || current_user || ' | ' || current_setting('listen_addresses') || ':' || current_setting('port');"
       become_user: postgres
       register: postgresql_validation
       changed_when: false
 
-    - name: Show PostgreSQL validation result
+    - name: Display PostgreSQL validation result
       ansible.builtin.debug:
-        msg: "{{ postgresql_validation.stdout | trim }}"
-
-  handlers:
-    - name: Restart PostgreSQL
-      ansible.builtin.service:
-        name: postgresql
-        state: restarted
+        msg:
+          - "Service state: {{ postgresql_service_status.status.ActiveState }}"
+          - "Readiness: {{ postgresql_ready.stdout }}"
+          - "Listener: {{ postgresql_port_status.stdout }}"
+          - "Database: {{ postgresql_validation.stdout | trim }}"
