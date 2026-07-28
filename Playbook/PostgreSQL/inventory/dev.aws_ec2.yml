@@ -1,0 +1,31 @@
+---
+plugin: amazon.aws.aws_ec2
+
+regions:
+  - us-east-1
+
+filters:
+  instance-state-name: running
+  tag:Environment: dev
+  tag:Name: dev-otms-postgresql-ec2
+
+# SSM ko instance ID chahiye
+hostnames:
+  - instance-id
+
+# Filtered instances ko is group mein add karo
+groups:
+  postgresql_targets: >-
+    tags.Environment == 'dev'
+    and tags.Name == 'dev-otms-postgresql-ec2'
+
+# SSM connection variables
+compose:
+  ansible_connection: "'amazon.aws.aws_ssm'"
+  ansible_aws_ssm_region: "'us-east-1'"
+  ansible_aws_ssm_bucket_name: "'dev-otms-ansible-ssm'"
+  ansible_aws_ssm_timeout: "120"
+  ansible_aws_ssm_retries: "5"
+  ansible_shell_type: "'sh'"
+
+strict: false
