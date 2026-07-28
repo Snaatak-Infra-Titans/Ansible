@@ -6,6 +6,7 @@
   vars:
     redis_bind: "0.0.0.0"
     redis_port: 6379
+    redis_protected_mode: "no"
 
   tasks:
 
@@ -14,73 +15,58 @@
         update_cache: yes
         cache_valid_time: 3600
 
-    - name: Install Redis
+    - name: Install Redis Server
       apt:
         name: redis-server
         state: present
 
-    - name: Ensure Redis config directory exists
-      file:
-        path: /etc/redis
-        state: directory
-        owner: redis
-        group: redis
-        mode: "0755"
+    - name: Configure Redis bind address
+      lineinfile:
+        path: /etc/redis/redis.conf
+        regexp: '^bind '
+        line: "bind {{ redis_bind }}"
+        backup: yes
+      notify: Restart Redis
 
-    - name: Configure Redis
-      copy:
-        dest: /etc/redis/redis.conf
-        owner: redis
-        group: redis
-        mode: "0644"
-        content: |
-          bind {{ redis_bind }}
-          protected-mode yes
-          port {{ redis_port }}
+    - name: Configure Redis protected mode
+      lineinfile:
+        path: /etc/redis/redis.conf
+        regexp: '^protected-mode '
+        line: "protected-mode {{ redis_protected_mode }}"
+      notify: Restart Redis
 
-          daemonize no
-          supervised systemd
+    - name: Configure Redis port
+      lineinfile:
+        path: /etc/redis/redis.conf
+        regexp: '^port '
+        line: "port {{ redis_port }}"
+      notify: Restart Redis
 
-          dir /var/lib/redis
-
-          loglevel notice
-          logfile ""
-
-          save ""
-
-          appendonly no
-
-    - name: Ensure Redis data directory exists
-      file:
-        path: /var/lib/redis
-        state: directory
-        owner: redis
-        group: redis
-        mode: "0755"
-
-    - name: Restart systemd daemon
-      systemd:
-        daemon_reload: yes
-
-    - name: Enable Redis
+    - name: Ensure Redis service is enabled and started
       systemd:
         name: redis-server
         enabled: yes
-
-    - name: Start Redis
-      systemd:
-        name: redis-server
         state: started
+        daemon_reload: yes
 
-    - name: Wait for Redis
+    - name: Wait for Redis to listen
       wait_for:
-        port: 6379
+        host: 127.0.0.1
+        port: "{{ redis_port }}"
         timeout: 30
 
-    - name: Verify Redis
+    - name: Verify Redis locally
       command: redis-cli ping
       register: redis_ping
       changed_when: false
 
-    - debug:
+    - name: Display Redis status
+      debug:
         msg: "{{ redis_ping.stdout }}"
+
+  handlers:
+
+    - name: Restart Redis
+      systemd:
+        name: redis-server
+        state: restarted
