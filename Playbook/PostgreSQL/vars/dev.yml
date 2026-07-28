@@ -1,10 +1,15 @@
 ---
 postgresql_version: "16"
+postgresql_service_name: postgresql
+
 postgresql_database: attendance_db
 postgresql_user: postgres
-postgresql_password: "password"
+postgresql_password: password
 postgresql_port: 5432
+
+postgresql_listen_addresses: "*"
 postgresql_allowed_cidr: 10.0.0.0/24
+postgresql_auth_method: scram-sha-256
 
 postgresql_conf: "/etc/postgresql/{{ postgresql_version }}/main/postgresql.conf"
 postgresql_hba: "/etc/postgresql/{{ postgresql_version }}/main/pg_hba.conf"
