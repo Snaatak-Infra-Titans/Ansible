@@ -1,0 +1,11 @@
+---
+- name: Install PostgreSQL and Python dependencies
+  apt:
+    name:
+      - postgresql
+      - postgresql-contrib
+      - python3-psycopg2
+      - acl
+    state: present
+    update_cache: yes
+  become: true
