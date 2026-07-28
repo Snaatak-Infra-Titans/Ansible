@@ -1,0 +1,24 @@
+---
+# AWS target details
+aws_region: us-east-1
+target_environment: dev
+target_name: dev-otms-postgresql-ec2
+
+# SSM file-transfer bucket
+ssm_bucket: dev-otms-ansible-ssm
+ssm_connection_timeout: 120
+ssm_connection_retries: 5
+
+# PostgreSQL configuration
+postgresql_version: "16"
+postgresql_database: attendance_db
+postgresql_user: postgres
+postgresql_password: "password"
+postgresql_port: 5432
+
+# OTMS VPC CIDR
+postgresql_allowed_cidr: 10.0.0.0/24
+
+# Ubuntu PostgreSQL paths
+postgresql_conf: "/etc/postgresql/{{ postgresql_version }}/main/postgresql.conf"
+postgresql_hba: "/etc/postgresql/{{ postgresql_version }}/main/pg_hba.conf"
