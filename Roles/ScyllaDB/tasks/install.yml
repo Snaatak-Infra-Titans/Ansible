@@ -1,0 +1,53 @@
+---
+- name: Update APT package cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install prerequisite packages
+  ansible.builtin.apt:
+    name:
+      - gnupg
+      - wget
+      - curl
+    state: present
+
+- name: Create APT keyrings directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Import ScyllaDB signing key
+  ansible.builtin.shell: |
+    gpg --homedir /tmp \
+        --no-default-keyring \
+        --keyring /tmp/temp.gpg \
+        --keyserver hkp://keyserver.ubuntu.com:80 \
+        --recv-keys C503C686B007F39E
+
+    gpg --homedir /tmp \
+        --no-default-keyring \
+        --keyring /tmp/temp.gpg \
+        --export --armor C503C686B007F39E \
+        | gpg --dearmor \
+        > /etc/apt/keyrings/scylladb.gpg
+  args:
+    executable: /bin/bash
+    creates: /etc/apt/keyrings/scylladb.gpg
+
+- name: Download ScyllaDB repository file
+  ansible.builtin.get_url:
+    url: "https://downloads.scylladb.com/deb/debian/scylla-2026.1.list"
+    dest: /etc/apt/sources.list.d/scylla.list
+    mode: "0644"
+    force: true
+
+- name: Update APT package cache after adding ScyllaDB repository
+  ansible.builtin.apt:
+    update_cache: true
+
+- name: Install ScyllaDB
+  ansible.builtin.apt:
+    name: "{{ scylla_package }}"
+    state: present
