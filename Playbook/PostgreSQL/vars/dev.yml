@@ -13,3 +13,8 @@ postgresql_auth_method: scram-sha-256
 
 postgresql_conf: "/etc/postgresql/{{ postgresql_version }}/main/postgresql.conf"
 postgresql_hba: "/etc/postgresql/{{ postgresql_version }}/main/pg_hba.conf"
+
+# Last known good configuration used during rollback
+postgresql_backup_dir: /var/backups/otms-postgresql
+postgresql_conf_backup: "{{ postgresql_backup_dir }}/postgresql.conf.last-known-good"
+postgresql_hba_backup: "{{ postgresql_backup_dir }}/pg_hba.conf.last-known-good"
