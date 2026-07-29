@@ -1,0 +1,46 @@
+---
+- name: Verify ScyllaDB Deployment
+  hosts: "{{ target_hosts | default('scylladb') }}"
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Check if ScyllaDB service exists
+      ansible.builtin.assert:
+        that:
+          - "'scylla-server.service' in ansible_facts.services"
+        fail_msg: "ScyllaDB service (scylla-server.service) was not found on {{ inventory_hostname }}"
+        success_msg: "ScyllaDB service exists on {{ inventory_hostname }}"
+
+    - name: Check if ScyllaDB service is running
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['scylla-server.service'].state == 'running'
+        fail_msg: "ScyllaDB service is not running on {{ inventory_hostname }}"
+        success_msg: "ScyllaDB service is running on {{ inventory_hostname }}"
+
+    - name: Check if ScyllaDB service is enabled
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['scylla-server.service'].status in ['enabled', 'static']
+        fail_msg: "ScyllaDB service is not enabled on {{ inventory_hostname }}"
+        success_msg: "ScyllaDB service is enabled on {{ inventory_hostname }}"
+
+    - name: Wait for CQL port 9042 to be reachable
+      ansible.builtin.wait_for:
+        host: "{{ ansible_host | default(inventory_hostname) }}"
+        port: 9042
+        timeout: 30
+        state: started
+
+    - name: Check ScyllaDB nodetool status
+      ansible.builtin.command: nodetool status
+      register: nodetool_status
+      changed_when: false
+
+    - name: Show nodetool status
+      ansible.builtin.debug:
+        var: nodetool_status.stdout_lines
