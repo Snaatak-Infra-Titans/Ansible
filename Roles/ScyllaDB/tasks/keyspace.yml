@@ -1,0 +1,30 @@
+---
+- name: Check existing Scylla keyspaces
+  ansible.builtin.shell: |
+    cqlsh {{ scylla_cql_host }} {{ scylla_cql_port }} \
+    -e "DESCRIBE KEYSPACES;"
+  register: existing_keyspaces
+  changed_when: false
+
+- name: Create application keyspaces
+  ansible.builtin.shell: |
+    cqlsh {{ scylla_cql_host }} {{ scylla_cql_port }} <<EOF
+    CREATE KEYSPACE IF NOT EXISTS {{ item }}
+    WITH replication = {
+      'class': '{{ scylla_replication_class }}',
+      'replication_factor': {{ scylla_replication_factor }}
+    };
+    EOF
+  loop: "{{ scylla_keyspaces }}"
+  when: item not in existing_keyspaces.stdout
+
+- name: Verify application keyspaces
+  ansible.builtin.shell: |
+    cqlsh {{ scylla_cql_host }} {{ scylla_cql_port }} \
+    -e "DESCRIBE KEYSPACES;"
+  register: verify_keyspaces
+  changed_when: false
+
+- name: Display available keyspaces
+  ansible.builtin.debug:
+    var: verify_keyspaces.stdout_lines
