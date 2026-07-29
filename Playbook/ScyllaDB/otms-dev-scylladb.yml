@@ -9,9 +9,11 @@
     ansible_aws_ssm_bucket_name: dev-otms-ansible-ssm
     ansible_aws_ssm_region: us-east-1
 
+    # Package & Service
     scylla_package: scylla
     scylla_service_name: scylla-server
 
+    # Cluster Configuration
     scylla_cluster_name: "OTMS-Cluster"
     scylla_seed_nodes: "{{ ansible_facts.default_ipv4.address }}"
     scylla_listen_address: "{{ ansible_facts.default_ipv4.address }}"
@@ -19,8 +21,22 @@
     scylla_endpoint_snitch: "SimpleSnitch"
     scylla_developer_mode: true
 
+    # Ports
     scylla_native_transport_port: 9042
     scylla_api_port: 10000
+
+    # CQL Connectivity
+    scylla_cql_host: "scylladb.otms.internal"
+    scylla_cql_port: "{{ scylla_native_transport_port }}"
+    scylla_cql_wait_timeout: 180
+
+    # Application Keyspaces
+    scylla_keyspaces:
+      - employee_db
+
+    # Replication
+    scylla_replication_class: "SimpleStrategy"
+    scylla_replication_factor: 1
 
   handlers:
     - name: Restart ScyllaDB
@@ -29,6 +45,7 @@
         state: restarted
 
   tasks:
+
     - name: Update APT package cache
       ansible.builtin.apt:
         update_cache: true
@@ -59,7 +76,7 @@
         gpg --homedir /tmp \
             --no-default-keyring \
             --keyring /tmp/temp.gpg \
-            --export --armor C503C686B007F39E \
+            --export C503C686B007F39E \
             | gpg --dearmor \
             > /etc/apt/keyrings/scylladb.gpg
       args:
@@ -86,46 +103,95 @@
         path: /etc/scylla/scylla.yaml
         regexp: '^cluster_name:'
         line: 'cluster_name: "{{ scylla_cluster_name }}"'
+        backup: true
+      notify: Restart ScyllaDB
 
     - name: Set seed nodes
       ansible.builtin.lineinfile:
         path: /etc/scylla/scylla.yaml
-        regexp: '^\s*- seeds:'
+        regexp: 'seeds:'
         line: '          - seeds: "{{ scylla_seed_nodes }}"'
+        backup: true
+      notify: Restart ScyllaDB
 
     - name: Set listen address
       ansible.builtin.lineinfile:
         path: /etc/scylla/scylla.yaml
         regexp: '^listen_address:'
         line: 'listen_address: "{{ scylla_listen_address }}"'
+        backup: true
+      notify: Restart ScyllaDB
 
     - name: Set rpc address
       ansible.builtin.lineinfile:
         path: /etc/scylla/scylla.yaml
         regexp: '^rpc_address:'
         line: 'rpc_address: "{{ scylla_rpc_address }}"'
+        backup: true
+      notify: Restart ScyllaDB
 
     - name: Set endpoint snitch
       ansible.builtin.lineinfile:
         path: /etc/scylla/scylla.yaml
         regexp: '^endpoint_snitch:'
         line: 'endpoint_snitch: "{{ scylla_endpoint_snitch }}"'
+        backup: true
+      notify: Restart ScyllaDB
 
     - name: Enable developer mode
       ansible.builtin.lineinfile:
         path: /etc/scylla/scylla.yaml
         regexp: '^developer_mode:'
         line: 'developer_mode: {{ scylla_developer_mode | lower }}'
+        backup: true
+      notify: Restart ScyllaDB
 
-    - name: Enable ScyllaDB service
+    - name: Enable and start ScyllaDB service
       ansible.builtin.systemd:
         name: "{{ scylla_service_name }}"
         enabled: true
-
-    - name: Start ScyllaDB service
-      ansible.builtin.systemd:
-        name: "{{ scylla_service_name }}"
         state: started
+
+    - name: Apply configuration changes immediately
+      ansible.builtin.meta: flush_handlers
+
+    - name: Wait for ScyllaDB CQL port
+      ansible.builtin.wait_for:
+        host: "{{ scylla_listen_address }}"
+        port: "{{ scylla_native_transport_port }}"
+        timeout: "{{ scylla_cql_wait_timeout }}"
+
+    - name: Check existing Scylla keyspaces
+      ansible.builtin.shell: |
+        cqlsh {{ scylla_cql_host }} {{ scylla_cql_port }} \
+        -e "DESCRIBE KEYSPACES;"
+      register: existing_keyspaces
+      changed_when: false
+
+    - name: Create application keyspaces
+      ansible.builtin.shell: |
+        cqlsh {{ scylla_cql_host }} {{ scylla_cql_port }} <<EOF
+        CREATE KEYSPACE IF NOT EXISTS {{ item }}
+        WITH replication = {
+          'class': '{{ scylla_replication_class }}',
+          'replication_factor': {{ scylla_replication_factor }}
+        };
+        EOF
+      args:
+        executable: /bin/bash
+      loop: "{{ scylla_keyspaces }}"
+      when: item not in existing_keyspaces.stdout
+
+    - name: Verify application keyspaces
+      ansible.builtin.shell: |
+        cqlsh {{ scylla_cql_host }} {{ scylla_cql_port }} \
+        -e "DESCRIBE KEYSPACES;"
+      register: verify_keyspaces
+      changed_when: false
+
+    - name: Display available keyspaces
+      ansible.builtin.debug:
+        var: verify_keyspaces.stdout_lines
 
     - name: Verify ScyllaDB service is running
       ansible.builtin.systemd:
@@ -141,12 +207,13 @@
         msg: "ScyllaDB service is not running."
       when: scylla_service_status.status.ActiveState != "active"
 
-    - name: Verify ScyllaDB is listening on port 9042
-      ansible.builtin.shell: ss -lnt | grep ':9042'
-      register: scylla_port
-      changed_when: false
+    - name: Verify ScyllaDB is listening on port {{ scylla_native_transport_port }}
+      ansible.builtin.shell: |
+        ss -lnt | grep ":{{ scylla_native_transport_port }}"
       args:
         executable: /bin/bash
+      register: scylla_port
+      changed_when: false
 
     - name: Display listening port
       ansible.builtin.debug:
@@ -160,3 +227,11 @@
     - name: Display ScyllaDB version
       ansible.builtin.debug:
         var: scylla_version.stdout
+
+    - name: Display keyspace summary
+      ansible.builtin.debug:
+        msg:
+          - "ScyllaDB Version: {{ scylla_version.stdout }}"
+          - "Service Status: {{ scylla_service_status.status.ActiveState }}"
+          - "Configured Keyspaces:"
+          - "{{ verify_keyspaces.stdout_lines }}"
