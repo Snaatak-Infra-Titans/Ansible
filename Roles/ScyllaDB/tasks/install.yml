@@ -29,20 +29,21 @@
     gpg --homedir /tmp \
         --no-default-keyring \
         --keyring /tmp/temp.gpg \
-        --export --armor C503C686B007F39E \
+        --export C503C686B007F39E \
         | gpg --dearmor \
         > /etc/apt/keyrings/scylladb.gpg
   args:
     executable: /bin/bash
     creates: /etc/apt/keyrings/scylladb.gpg
 
-- name: Download ScyllaDB repository file
-  ansible.builtin.get_url:
-    url: "https://downloads.scylladb.com/deb/debian/scylla-2026.1.list"
+- name: Configure ScyllaDB APT repository
+  ansible.builtin.copy:
     dest: /etc/apt/sources.list.d/scylla.list
     mode: "0644"
+    content: |
+      deb [signed-by=/etc/apt/keyrings/scylladb.gpg] https://downloads.scylladb.com/deb/debian scylla-2026.1 main
 
-- name: Update APT cache
+- name: Update APT package cache after adding Scylla repository
   ansible.builtin.apt:
     update_cache: true
 
