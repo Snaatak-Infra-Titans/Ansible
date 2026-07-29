@@ -1,0 +1,41 @@
+---
+- name: Controlled PostgreSQL Rollback Test
+  hosts: postgresql
+  become: true
+  gather_facts: false
+
+  pre_tasks:
+    - name: Load environment-specific PostgreSQL variables
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/{{ vars_file | default('vars/dev.yml') }}"
+
+  tasks:
+    - name: Add harmless rollback test marker
+      ansible.builtin.lineinfile:
+        path: "{{ postgresql_conf }}"
+        line: "# CONTROLLED_ROLLBACK_TEST_MARKER"
+        insertafter: EOF
+        state: present
+
+    - name: Confirm rollback test marker was added
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -F
+          - "# CONTROLLED_ROLLBACK_TEST_MARKER"
+          - "{{ postgresql_conf }}"
+      register: rollback_test_marker
+      changed_when: false
+
+    - name: Display controlled test message
+      ansible.builtin.debug:
+        msg:
+          - "Controlled rollback test marker added successfully."
+          - "The next task will intentionally fail."
+          - "Jenkins Shared Library should trigger rollback."
+
+    - name: Trigger intentional deployment failure
+      ansible.builtin.fail:
+        msg: >-
+          Intentional controlled failure triggered to demonstrate
+          PostgreSQL configuration rollback.
