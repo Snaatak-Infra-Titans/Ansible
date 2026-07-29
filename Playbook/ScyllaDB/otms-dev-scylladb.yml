@@ -235,3 +235,4 @@
           - "Service Status: {{ scylla_service_status.status.ActiveState }}"
           - "Configured Keyspaces:"
           - "{{ verify_keyspaces.stdout_lines }}"
+          
