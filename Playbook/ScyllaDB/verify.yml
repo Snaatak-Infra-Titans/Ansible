@@ -29,12 +29,36 @@
         fail_msg: "ScyllaDB service is not enabled on {{ inventory_hostname }}"
         success_msg: "ScyllaDB service is enabled on {{ inventory_hostname }}"
 
-    - name: Wait for CQL port 9042 on localhost
-      ansible.builtin.wait_for:
-        host: "127.0.0.1"
-        port: 9042
-        timeout: 30
-        state: started
+    - name: Verify ScyllaDB is listening on port 9042
+      ansible.builtin.shell: ss -lnt | grep ':9042'
+      register: scylla_port
+      changed_when: false
+
+    - name: Display listening port
+      ansible.builtin.debug:
+        var: scylla_port.stdout
+
+    - name: Verify ScyllaDB version
+      ansible.builtin.command: scylla --version
+      register: scylla_version
+      changed_when: false
+
+    - name: Display ScyllaDB version
+      ansible.builtin.debug:
+        var: scylla_version.stdout
+
+    - name: Check existing keyspaces
+      ansible.builtin.shell: cqlsh -e "DESCRIBE KEYSPACES"
+      register: verify_keyspaces
+      changed_when: false
+
+    - name: Display keyspace summary
+      ansible.builtin.debug:
+        msg:
+          - "ScyllaDB Version: {{ scylla_version.stdout }}"
+          - "Service Status: {{ ansible_facts.services['scylla-server.service'].state }}"
+          - "Configured Keyspaces:"
+          - "{{ verify_keyspaces.stdout_lines }}"
 
     - name: Check ScyllaDB nodetool status
       ansible.builtin.command: nodetool status
