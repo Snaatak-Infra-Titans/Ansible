@@ -29,9 +29,9 @@
         fail_msg: "ScyllaDB service is not enabled on {{ inventory_hostname }}"
         success_msg: "ScyllaDB service is enabled on {{ inventory_hostname }}"
 
-    - name: Wait for CQL port 9042 to be reachable
+    - name: Wait for CQL port 9042 on localhost
       ansible.builtin.wait_for:
-        host: "{{ ansible_host | default(inventory_hostname) }}"
+        host: "127.0.0.1"
         port: 9042
         timeout: 30
         state: started
