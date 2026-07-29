@@ -5,7 +5,7 @@ regions:
   - us-east-1
 
 filters:
-  "tag:Name": "dev-otms-postgres"
+  "tag:Name":  "dev-otms-postgresql-ec2"
   instance-state-name: running
 
 hostnames:
