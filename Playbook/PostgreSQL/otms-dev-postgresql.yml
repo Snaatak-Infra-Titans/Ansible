@@ -4,8 +4,10 @@
   become: true
   gather_facts: true
 
-  vars_files:
-    - "{{ playbook_dir }}/vars/dev.yml"
+  pre_tasks:
+    - name: Load environment-specific PostgreSQL variables
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/{{ vars_file | default('vars/dev.yml') }}"
 
   handlers:
     - name: Restart PostgreSQL
@@ -33,12 +35,55 @@
         enabled: true
         state: started
 
+    - name: Wait for PostgreSQL before creating configuration backup
+      ansible.builtin.command:
+        argv:
+          - pg_isready
+          - -h
+          - 127.0.0.1
+          - -p
+          - "{{ postgresql_port | string }}"
+      register: postgresql_initial_readiness
+      changed_when: false
+      retries: 10
+      delay: 3
+      until: postgresql_initial_readiness.rc == 0
+
+    # These backups represent the configuration that was working
+    # before the current deployment started.
+    - name: Create PostgreSQL backup directory
+      ansible.builtin.file:
+        path: "{{ postgresql_backup_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Backup current postgresql.conf
+      ansible.builtin.copy:
+        src: "{{ postgresql_conf }}"
+        dest: "{{ postgresql_conf_backup }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+        force: true
+
+    - name: Backup current pg_hba.conf
+      ansible.builtin.copy:
+        src: "{{ postgresql_hba }}"
+        dest: "{{ postgresql_hba_backup }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+        force: true
+
     - name: Configure PostgreSQL listen addresses
       ansible.builtin.lineinfile:
         path: "{{ postgresql_conf }}"
         regexp: '^\s*#?\s*listen_addresses\s*='
         line: "listen_addresses = '{{ postgresql_listen_addresses }}'"
-        backup: true
       notify: Restart PostgreSQL
 
     - name: Configure PostgreSQL port
@@ -66,12 +111,28 @@
     - name: Apply PostgreSQL configuration changes
       ansible.builtin.meta: flush_handlers
 
+    - name: Wait for PostgreSQL after configuration change
+      ansible.builtin.command:
+        argv:
+          - pg_isready
+          - -h
+          - 127.0.0.1
+          - -p
+          - "{{ postgresql_port | string }}"
+      register: postgresql_configured_readiness
+      changed_when: false
+      retries: 10
+      delay: 3
+      until: postgresql_configured_readiness.rc == 0
+
     - name: Set postgres user password
       ansible.builtin.command:
         argv:
           - psql
           - -c
-          - "ALTER USER {{ postgresql_user }} WITH PASSWORD '{{ postgresql_password }}';"
+          - >-
+            ALTER USER {{ postgresql_user }}
+            WITH PASSWORD '{{ postgresql_password }}';
       become_user: postgres
       no_log: true
       changed_when: false
@@ -81,7 +142,9 @@
         argv:
           - psql
           - -tAc
-          - "SELECT 1 FROM pg_database WHERE datname='{{ postgresql_database }}';"
+          - >-
+            SELECT 1 FROM pg_database
+            WHERE datname='{{ postgresql_database }}';
       become_user: postgres
       register: postgresql_database_check
       changed_when: false
@@ -95,31 +158,23 @@
       become_user: postgres
       when: postgresql_database_check.stdout | trim != "1"
 
-    - name: Verify PostgreSQL service is running
+    - name: Get PostgreSQL service status
       ansible.builtin.systemd:
         name: "{{ postgresql_service_name }}"
       register: postgresql_service_status
 
     - name: Fail when PostgreSQL service is not running
-      ansible.builtin.fail:
-        msg: PostgreSQL service is not running.
-      when: postgresql_service_status.status.ActiveState != "active"
-
-    - name: Verify PostgreSQL is accepting connections
-      ansible.builtin.command:
-        argv:
-          - pg_isready
-          - -h
-          - 127.0.0.1
-          - -p
-          - "{{ postgresql_port | string }}"
-      register: postgresql_ready
-      changed_when: false
+      ansible.builtin.assert:
+        that:
+          - postgresql_service_status.status.ActiveState == "active"
+        fail_msg: PostgreSQL service is not running.
+        success_msg: PostgreSQL service is running.
 
     - name: Verify PostgreSQL listener
       ansible.builtin.shell: |
         set -o pipefail
-        ss -lnt | grep -E '0\.0\.0\.0:{{ postgresql_port }}|\[::\]:{{ postgresql_port }}'
+        ss -lnt |
+        grep -E '0\.0\.0\.0:{{ postgresql_port }}|\[::\]:{{ postgresql_port }}'
       args:
         executable: /bin/bash
       register: postgresql_port_status
@@ -132,7 +187,14 @@
           - -d
           - "{{ postgresql_database }}"
           - -tAc
-          - "SELECT current_database() || ' | ' || current_user || ' | ' || current_setting('listen_addresses') || ':' || current_setting('port');"
+          - >-
+            SELECT current_database()
+            || ' | '
+            || current_user
+            || ' | '
+            || current_setting('listen_addresses')
+            || ':'
+            || current_setting('port');
       become_user: postgres
       register: postgresql_validation
       changed_when: false
@@ -140,7 +202,8 @@
     - name: Display PostgreSQL validation result
       ansible.builtin.debug:
         msg:
+          - "Environment: {{ deployment_environment | default('dev') }}"
           - "Service state: {{ postgresql_service_status.status.ActiveState }}"
-          - "Readiness: {{ postgresql_ready.stdout }}"
+          - "Readiness: {{ postgresql_configured_readiness.stdout }}"
           - "Listener: {{ postgresql_port_status.stdout }}"
           - "Database: {{ postgresql_validation.stdout | trim }}"
