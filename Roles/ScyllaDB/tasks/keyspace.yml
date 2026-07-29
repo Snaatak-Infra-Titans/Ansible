@@ -17,6 +17,7 @@
     EOF
   loop: "{{ scylla_keyspaces }}"
   when: item not in existing_keyspaces.stdout
+  run_once: true
 
 - name: Verify application keyspaces
   ansible.builtin.shell: |
