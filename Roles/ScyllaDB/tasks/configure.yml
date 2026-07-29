@@ -4,33 +4,45 @@
     path: /etc/scylla/scylla.yaml
     regexp: '^cluster_name:'
     line: 'cluster_name: "{{ scylla_cluster_name }}"'
+    backup: true
+  notify: Restart ScyllaDB
 
 - name: Set seed nodes
   ansible.builtin.lineinfile:
     path: /etc/scylla/scylla.yaml
-    regexp: '^\s*- seeds:'
+    regexp: 'seeds:'
     line: '          - seeds: "{{ scylla_seed_nodes }}"'
+    backup: true
+  notify: Restart ScyllaDB
 
 - name: Set listen address
   ansible.builtin.lineinfile:
     path: /etc/scylla/scylla.yaml
     regexp: '^listen_address:'
     line: 'listen_address: "{{ scylla_listen_address }}"'
+    backup: true
+  notify: Restart ScyllaDB
 
 - name: Set rpc address
   ansible.builtin.lineinfile:
     path: /etc/scylla/scylla.yaml
     regexp: '^rpc_address:'
     line: 'rpc_address: "{{ scylla_rpc_address }}"'
+    backup: true
+  notify: Restart ScyllaDB
 
 - name: Set endpoint snitch
   ansible.builtin.lineinfile:
     path: /etc/scylla/scylla.yaml
     regexp: '^endpoint_snitch:'
     line: 'endpoint_snitch: "{{ scylla_endpoint_snitch }}"'
+    backup: true
+  notify: Restart ScyllaDB
 
 - name: Enable developer mode
   ansible.builtin.lineinfile:
     path: /etc/scylla/scylla.yaml
     regexp: '^developer_mode:'
     line: 'developer_mode: {{ scylla_developer_mode | lower }}'
+    backup: true
+  notify: Restart ScyllaDB
