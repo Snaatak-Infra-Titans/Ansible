@@ -48,7 +48,9 @@
         var: scylla_version.stdout
 
     - name: Check existing keyspaces
-      ansible.builtin.shell: cqlsh -e "DESCRIBE KEYSPACES"
+      ansible.builtin.shell: >
+        cqlsh {{ ansible_default_ipv4.address }} 9042
+        -e "DESCRIBE KEYSPACES"
       register: verify_keyspaces
       changed_when: false
 
