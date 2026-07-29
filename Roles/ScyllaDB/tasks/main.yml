@@ -8,5 +8,8 @@
 - name: Enable and Start ScyllaDB Service
   ansible.builtin.import_tasks: service.yml
 
+- name: Create Application Keyspaces
+  ansible.builtin.import_tasks: keyspace.yml
+
 - name: Verify ScyllaDB Installation
   ansible.builtin.import_tasks: verify.yml
