@@ -8,6 +8,7 @@
         name: "{{ item }}"
         ansible_connection: docker
       loop: "{{ groups['all'] | default([]) }}"
+      changed_when: false
 
 - name: Verify
   hosts: all
