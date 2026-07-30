@@ -1,9 +1,17 @@
 ---
-# Purpose: bring the instance to the desired state by running the role under test.
-# Molecule calls this playbook with `molecule converge`.
+- name: Pre-converge setup
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Set connection to docker for all hosts
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        ansible_connection: docker
+      loop: "{{ groups['all'] | default([]) }}"
+
 - name: Converge
   hosts: all
-  gather_facts: true # Disable if your role does not rely on facts
+  gather_facts: true
   tasks:
     - name: Apply role under test
       ansible.builtin.include_role:

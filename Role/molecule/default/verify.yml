@@ -1,4 +1,14 @@
 ---
+- name: Pre-verify setup
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Set connection to docker for all hosts
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        ansible_connection: docker
+      loop: "{{ groups['all'] | default([]) }}"
+
 - name: Verify
   hosts: all
   gather_facts: true

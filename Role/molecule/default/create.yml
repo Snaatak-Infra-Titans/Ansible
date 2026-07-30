@@ -1,0 +1,30 @@
+---
+- name: Create
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Remove any existing test container
+      ansible.builtin.shell: |
+        docker rm -f instance
+      failed_when: false
+
+    - name: Spin up a systemd-enabled Ubuntu 22.04 container
+      ansible.builtin.shell: |
+        docker run -d \
+          --name instance \
+          --privileged \
+          --cgroupns=host \
+          --volume /sys/fs/cgroup:/sys/fs/cgroup:rw \
+          --tmpfs /run \
+          geerlingguy/docker-ubuntu2204-ansible:latest
+
+    - name: Generate instance config
+      ansible.builtin.copy:
+        content: |
+          - address: instance
+            instance: instance
+            user: root
+            ansible_connection: docker
+        dest: "{{ molecule_instance_config }}"
+        mode: "0600"
