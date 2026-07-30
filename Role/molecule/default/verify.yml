@@ -1,10 +1,28 @@
 ---
-# Purpose: assert that the instance really ended up in the expected state.
-# Molecule calls this playbook with `molecule verify`.
 - name: Verify
-  hosts: instance
-  gather_facts: false # Quicker, if you do not need facts
+  hosts: all
+  gather_facts: true
+  vars_files:
+    - ../../roles/postgresql/defaults/main.yaml
   tasks:
-    - name: Assert something
-      ansible.builtin.assert:
-        that: true
+    - name: Check PostgreSQL service status
+      ansible.builtin.service:
+        name: postgresql
+        state: started
+      check_mode: true
+      register: pg_service
+      failed_when: pg_service.changed
+
+    - name: Verify PostgreSQL port is listening
+      ansible.builtin.wait_for:
+        port: "{{ postgres_port }}"
+        timeout: 10
+
+    - name: Verify database user can connect and query
+      community.postgresql.postgresql_query:
+        db: "{{ postgres_db }}"
+        login_user: "{{ postgres_user }}"
+        login_password: "{{ postgres_password }}"
+        query: "SELECT 1"
+      become: true
+      become_user: postgres

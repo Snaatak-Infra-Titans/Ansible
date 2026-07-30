@@ -7,4 +7,6 @@
   tasks:
     - name: Apply role under test
       ansible.builtin.include_role:
-        name: yournamespace.yourcollection.yourrole
+        name: postgresql
+      vars:
+        postgres_version: "14"
