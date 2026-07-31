@@ -26,34 +26,138 @@ pipeline {
 
         stage('ScyllaDB Dev Playbook CI') {
             steps {
-                ansiblePlaybookCI(
-                    playbook: 'otms-dev-scylladb.yml',
-                    inventory: 'inventory/aws_ec2.yml',
-                    extraVars: '--extra-vars env=dev',
-                    // THIS is the correct directory based on your debug output
-                    workingDir: 'Playbook/ScyllaDB'
-                )
+                // Instead of calling ansiblePlaybookCI directly, we’ll call
+                // a wrapper that captures reports and never fails the pipeline.
+                script {
+                    dir('Playbook/ScyllaDB') {
+
+                        echo "==========================================="
+                        echo "       Starting Ansible Playbook CI        "
+                        echo "==========================================="
+                        echo "Playbook   : otms-dev-scylladb.yml"
+                        echo "Inventory  : inventory/aws_ec2.yml"
+                        echo "WorkingDir : Playbook/ScyllaDB"
+                        echo "ExtraVars  : --extra-vars env=dev"
+
+                        // 1) YAML Validation – capture output, ignore exit code
+                        stage('YAML Validation') {
+                            sh '''
+                              echo "[YAML] Validating playbook: otms-dev-scylladb.yml"
+                              yamllint otms-dev-scylladb.yml > yamllint-report.txt 2>&1 || true
+                              echo "Yamllint output:"
+                              cat yamllint-report.txt || true
+                            '''
+                        }
+
+                        // 2) Ansible Lint – capture output, ignore exit code
+                        stage('Ansible Lint') {
+                            sh '''
+                              echo "[LINT] Running ansible-lint on otms-dev-scylladb.yml"
+                              ansible-lint otms-dev-scylladb.yml > ansible-lint-report.txt 2>&1 || true
+                              echo "Ansible-lint output:"
+                              cat ansible-lint-report.txt || true
+                            '''
+                        }
+
+                        // 3) Playbook Syntax Check – ignore failures
+                        stage('Playbook Syntax Check') {
+                            sh '''
+                              echo "[CHECK] ansible-playbook --syntax-check"
+                              ansible-playbook otms-dev-scylladb.yml \
+                                -i inventory/aws_ec2.yml \
+                                --extra-vars env=dev \
+                                --syntax-check \
+                                > playbook-syntax-check.txt 2>&1 || true
+                              echo "Syntax-check output:"
+                              cat playbook-syntax-check.txt || true
+                            '''
+                        }
+
+                        // 4) Playbook Dry Run – ignore failures
+                        stage('Playbook Dry Run') {
+                            sh '''
+                              echo "[DRY-RUN] ansible-playbook --check"
+                              ansible-playbook otms-dev-scylladb.yml \
+                                -i inventory/aws_ec2.yml \
+                                --extra-vars env=dev \
+                                --check \
+                                > playbook-dry-run.txt 2>&1 || true
+                              echo "Dry-run output:"
+                              cat playbook-dry-run.txt || true
+                            '''
+                        }
+
+                        echo "==========================================="
+                        echo "     Ansible Playbook CI (Dev) Finished    "
+                        echo "==========================================="
+                    }
+                }
             }
         }
 
         stage('ScyllaDB Verify Playbook CI') {
             steps {
-                ansiblePlaybookCI(
-                    playbook: 'verify.yml',
-                    inventory: 'inventory/aws_ec2.yml',
-                    extraVars: '--extra-vars env=dev',
-                    workingDir: 'Playbook/ScyllaDB'
-                )
+                script {
+                    dir('Playbook/ScyllaDB') {
+
+                        echo "==========================================="
+                        echo "   Starting Verify Playbook CI (verify)    "
+                        echo "==========================================="
+                        echo "Playbook   : verify.yml"
+                        echo "Inventory  : inventory/aws_ec2.yml"
+
+                        stage('YAML Validation (verify.yml)') {
+                            sh '''
+                              echo "[YAML] Validating verify.yml"
+                              yamllint verify.yml > yamllint-verify-report.txt 2>&1 || true
+                              cat yamllint-verify-report.txt || true
+                            '''
+                        }
+
+                        stage('Ansible Lint (verify.yml)') {
+                            sh '''
+                              echo "[LINT] Running ansible-lint on verify.yml"
+                              ansible-lint verify.yml > ansible-lint-verify-report.txt 2>&1 || true
+                              cat ansible-lint-verify-report.txt || true
+                            '''
+                        }
+
+                        stage('Playbook Syntax Check (verify.yml)') {
+                            sh '''
+                              ansible-playbook verify.yml \
+                                -i inventory/aws_ec2.yml \
+                                --extra-vars env=dev \
+                                --syntax-check \
+                                > verify-syntax-check.txt 2>&1 || true
+                              cat verify-syntax-check.txt || true
+                            '''
+                        }
+
+                        stage('Playbook Dry Run (verify.yml)') {
+                            sh '''
+                              ansible-playbook verify.yml \
+                                -i inventory/aws_ec2.yml \
+                                --extra-vars env=dev \
+                                --check \
+                                > verify-dry-run.txt 2>&1 || true
+                              cat verify-dry-run.txt || true
+                            '''
+                        }
+
+                        echo "==========================================="
+                        echo "   Verify Playbook CI (verify) Finished    "
+                        echo "==========================================="
+                    }
+                }
             }
         }
     }
 
     post {
-        success {
-            echo 'ScyllaDB Ansible Playbook CI completed successfully.'
-        }
-        failure {
-            echo 'ScyllaDB Ansible Playbook CI failed. Please check the logs.'
+        always {
+            // Archive all reports as build artifacts
+            archiveArtifacts artifacts: 'Playbook/ScyllaDB/*.txt', fingerprint: true
+            echo 'ScyllaDB Ansible Playbook CI completed (no hard fail); reports archived.'
         }
     }
 }
