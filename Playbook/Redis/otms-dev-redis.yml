@@ -1,0 +1,72 @@
+---
+- name: Install and Configure Redis
+  hosts: redis
+  become: true
+
+  vars:
+    redis_bind: "0.0.0.0"
+    redis_port: 6379
+    redis_protected_mode: "no"
+
+  tasks:
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install Redis Server
+      apt:
+        name: redis-server
+        state: present
+
+    - name: Configure Redis bind address
+      lineinfile:
+        path: /etc/redis/redis.conf
+        regexp: '^bind '
+        line: "bind {{ redis_bind }}"
+        backup: yes
+      notify: Restart Redis
+
+    - name: Configure Redis protected mode
+      lineinfile:
+        path: /etc/redis/redis.conf
+        regexp: '^protected-mode '
+        line: "protected-mode {{ redis_protected_mode }}"
+      notify: Restart Redis
+
+    - name: Configure Redis port
+      lineinfile:
+        path: /etc/redis/redis.conf
+        regexp: '^port '
+        line: "port {{ redis_port }}"
+      notify: Restart Redis
+
+    - name: Ensure Redis service is enabled and started
+      systemd:
+        name: redis-server
+        enabled: yes
+        state: started
+        daemon_reload: yes
+
+    - name: Wait for Redis to listen
+      wait_for:
+        host: 127.0.0.1
+        port: "{{ redis_port }}"
+        timeout: 30
+
+    - name: Verify Redis locally
+      command: redis-cli ping
+      register: redis_ping
+      changed_when: false
+
+    - name: Display Redis status
+      debug:
+        msg: "{{ redis_ping.stdout }}"
+
+  handlers:
+
+    - name: Restart Redis
+      systemd:
+        name: redis-server
+        state: restarted
