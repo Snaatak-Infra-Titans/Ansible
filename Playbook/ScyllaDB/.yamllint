@@ -14,7 +14,7 @@ rules:
   # Optional: make indentation less strict if needed
   indentation:
     indent-sequences: consistent
-    check-multipline-strings: false
+    check-multiline-strings: false
 
   # Optional: relax document-start (no need for --- at top)
   document-start: disable
