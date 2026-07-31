@@ -18,8 +18,8 @@ pipeline {
                   pwd
                   echo "Listing root:"
                   ls -R
-                  echo "Listing Ansible/Playbook/ScyllaDB:"
-                  ls -l Ansible/Playbook/ScyllaDB || echo "ScyllaDB dir not found"
+                  echo "Listing Playbook/ScyllaDB:"
+                  ls -l Playbook/ScyllaDB || echo "Playbook/ScyllaDB dir not found"
                 '''
             }
         }
@@ -28,9 +28,10 @@ pipeline {
             steps {
                 ansiblePlaybookCI(
                     playbook: 'otms-dev-scylladb.yml',
-                    inventory: 'inventory/hosts',
+                    inventory: 'inventory/aws_ec2.yml',
                     extraVars: '--extra-vars env=dev',
-                    workingDir: 'Ansible/Playbook/ScyllaDB'
+                    // THIS is the correct directory based on your debug output
+                    workingDir: 'Playbook/ScyllaDB'
                 )
             }
         }
@@ -39,9 +40,9 @@ pipeline {
             steps {
                 ansiblePlaybookCI(
                     playbook: 'verify.yml',
-                    inventory: 'inventory/hosts',
+                    inventory: 'inventory/aws_ec2.yml',
                     extraVars: '--extra-vars env=dev',
-                    workingDir: 'Ansible/Playbook/ScyllaDB'
+                    workingDir: 'Playbook/ScyllaDB'
                 )
             }
         }
