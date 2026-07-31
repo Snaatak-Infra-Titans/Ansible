@@ -5,6 +5,26 @@ pipeline {
 
     stages {
 
+        stage('Verify Tools') {
+            steps {
+                sh '''
+                  echo "=== Verifying required tools ==="
+                  set -e
+
+                  echo "--- ansible ---"
+                  ansible --version || { echo "ansible not found"; exit 1; }
+
+                  echo "--- ansible-lint ---"
+                  ansible-lint --version || { echo "ansible-lint not found"; exit 1; }
+
+                  echo "--- yamllint ---"
+                  yamllint --version || { echo "yamllint not found"; exit 1; }
+
+                  echo "All required tools are available."
+                '''
+            }
+        }
+        
         stage('Checkout Playbook Repo') {
             steps {
                 checkout scm
