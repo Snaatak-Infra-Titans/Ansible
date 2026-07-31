@@ -7,22 +7,29 @@ pipeline {
 
         stage('Checkout Playbook Repo') {
             steps {
-                // Clones private repo Snaatak-Infra-Titans/Ansible.git
-                // using the branch configured in the job (e.g. SCRUM-447-pawan)
                 checkout scm
+            }
+        }
+
+        stage('Debug ScyllaDB Workspace') {
+            steps {
+                sh '''
+                  echo "PWD:"
+                  pwd
+                  echo "Listing root:"
+                  ls -R
+                  echo "Listing Ansible/Playbook/ScyllaDB:"
+                  ls -l Ansible/Playbook/ScyllaDB || echo "ScyllaDB dir not found"
+                '''
             }
         }
 
         stage('ScyllaDB Dev Playbook CI') {
             steps {
                 ansiblePlaybookCI(
-                    // Playbook file in Ansible/Playbook/ScyllaDB
                     playbook: 'otms-dev-scylladb.yml',
-                    // Inventory path under ScyllaDB (tweak file name if needed, e.g. inventory/dev)
                     inventory: 'inventory/hosts',
-                    // Optional extra vars
                     extraVars: '--extra-vars env=dev',
-                    // This is EXACT directory from your screenshot
                     workingDir: 'Ansible/Playbook/ScyllaDB'
                 )
             }
@@ -31,7 +38,6 @@ pipeline {
         stage('ScyllaDB Verify Playbook CI') {
             steps {
                 ansiblePlaybookCI(
-                    // Second playbook in same directory
                     playbook: 'verify.yml',
                     inventory: 'inventory/hosts',
                     extraVars: '--extra-vars env=dev',
