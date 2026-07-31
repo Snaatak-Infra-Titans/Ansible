@@ -1,20 +1,17 @@
-# .yamllint at repo root
-
 extends: default
 
 rules:
-  # Allow long lines up to 140 chars instead of 80
+  # Relax long line rule: allow up to 140 chars, only warn
   line-length:
     max: 140
-    level: warning   # or 'error' if you still want failures > 140
+    level: warning
 
-  # Ignore trailing spaces rule entirely
+  # Disable trailing spaces rule
   trailing-spaces: disable
 
-  # Optional: make indentation less strict if needed
+  # Optional: keep indentation rule but simpler
   indentation:
     indent-sequences: consistent
-    check-multiline-strings: false
 
-  # Optional: relax document-start (no need for --- at top)
+  # Optional: no need for "---" at start of file
   document-start: disable
