@@ -1,0 +1,21 @@
+---
+- name: Pre-converge setup
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Set connection to docker for all hosts
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        ansible_connection: docker
+      loop: "{{ groups['all'] | default([]) }}"
+      changed_when: false
+
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Apply role under test
+      ansible.builtin.include_role:
+        name: postgresql
+      vars:
+        postgres_version: "14"

@@ -1,0 +1,12 @@
+---
+# Default variables for PostgreSQL role
+postgres_version: "16"
+postgres_port: 5432
+postgres_listen_addresses: "*"
+postgres_allowed_hosts: "0.0.0.0/0"
+postgres_max_connections: 100
+postgres_shared_buffers: "128MB"
+# DB & User defaults
+postgres_db: "attendance_db"
+postgres_user: "postgres"
+postgres_password: "password"

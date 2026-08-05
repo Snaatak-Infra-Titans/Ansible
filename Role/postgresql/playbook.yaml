@@ -1,0 +1,8 @@
+---
+- name: Deploy PostgreSQL on AWS EC2 Instances
+  hosts: postgresql
+  gather_facts: yes
+  vars_files:
+    - vars/dev.yaml
+  roles:
+    - postgresql

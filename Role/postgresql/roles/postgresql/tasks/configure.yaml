@@ -1,0 +1,40 @@
+---
+- name: Configure PostgreSQL listen addresses
+  ansible.builtin.lineinfile:
+    path: "/etc/postgresql/{{ postgres_version }}/main/postgresql.conf"
+    regexp: '^#?listen_addresses\s*='
+    line: "listen_addresses = '{{ postgres_listen_addresses }}'"
+  become: true
+  notify: restart postgresql
+
+- name: Configure PostgreSQL port
+  ansible.builtin.lineinfile:
+    path: "/etc/postgresql/{{ postgres_version }}/main/postgresql.conf"
+    regexp: '^#?port\s*='
+    line: "port = {{ postgres_port }}"
+  become: true
+  notify: restart postgresql
+
+- name: Configure PostgreSQL max connections
+  ansible.builtin.lineinfile:
+    path: "/etc/postgresql/{{ postgres_version }}/main/postgresql.conf"
+    regexp: '^#?max_connections\s*='
+    line: "max_connections = {{ postgres_max_connections }}"
+  become: true
+  notify: restart postgresql
+
+- name: Configure PostgreSQL shared buffers
+  ansible.builtin.lineinfile:
+    path: "/etc/postgresql/{{ postgres_version }}/main/postgresql.conf"
+    regexp: '^#?shared_buffers\s*='
+    line: "shared_buffers = '{{ postgres_shared_buffers }}'"
+  become: true
+  notify: restart postgresql
+
+- name: Allow connections from allowed hosts network in pg_hba.conf
+  ansible.builtin.lineinfile:
+    path: "/etc/postgresql/{{ postgres_version }}/main/pg_hba.conf"
+    regexp: '^host\s+all\s+all\s+.*\s+md5\s*#\s*allowed_hosts'
+    line: "host    all             all             {{ postgres_allowed_hosts }}            md5 # allowed_hosts"
+  become: true
+  notify: restart postgresql

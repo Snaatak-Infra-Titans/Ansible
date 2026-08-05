@@ -1,0 +1,39 @@
+---
+- name: Pre-verify setup
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Set connection to docker for all hosts
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        ansible_connection: docker
+      loop: "{{ groups['all'] | default([]) }}"
+      changed_when: false
+
+- name: Verify
+  hosts: all
+  gather_facts: true
+  vars_files:
+    - ../../roles/postgresql/defaults/main.yaml
+  tasks:
+    - name: Check PostgreSQL service status
+      ansible.builtin.service:
+        name: postgresql
+        state: started
+      check_mode: true
+      register: pg_service
+      failed_when: pg_service.changed
+
+    - name: Verify PostgreSQL port is listening
+      ansible.builtin.wait_for:
+        port: "{{ postgres_port }}"
+        timeout: 10
+
+    - name: Verify database user can connect and query
+      community.postgresql.postgresql_query:
+        db: "{{ postgres_db }}"
+        login_user: "{{ postgres_user }}"
+        login_password: "{{ postgres_password }}"
+        query: "SELECT 1"
+      become: true
+      become_user: postgres
