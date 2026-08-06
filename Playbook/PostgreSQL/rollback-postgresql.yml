@@ -1,0 +1,95 @@
+---
+- name: Rollback PostgreSQL Configuration
+  hosts: postgresql
+  become: true
+  gather_facts: false
+
+  pre_tasks:
+    - name: Load environment-specific PostgreSQL variables
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/{{ vars_file | default('vars/dev.yml') }}"
+
+  handlers:
+    - name: Restart PostgreSQL after rollback
+      ansible.builtin.systemd:
+        name: "{{ postgresql_service_name }}"
+        state: restarted
+
+  tasks:
+    - name: Check postgresql.conf backup
+      ansible.builtin.stat:
+        path: "{{ postgresql_conf_backup }}"
+      register: postgresql_conf_backup_status
+
+    - name: Check pg_hba.conf backup
+      ansible.builtin.stat:
+        path: "{{ postgresql_hba_backup }}"
+      register: postgresql_hba_backup_status
+
+    - name: Validate rollback backup files
+      ansible.builtin.assert:
+        that:
+          - postgresql_conf_backup_status.stat.exists
+          - postgresql_hba_backup_status.stat.exists
+        fail_msg: >-
+          PostgreSQL rollback cannot continue because one or more
+          last-known-good configuration backups are missing.
+        success_msg: PostgreSQL rollback backups are available.
+
+    - name: Restore postgresql.conf
+      ansible.builtin.copy:
+        src: "{{ postgresql_conf_backup }}"
+        dest: "{{ postgresql_conf }}"
+        remote_src: true
+        owner: postgres
+        group: postgres
+        mode: "0640"
+      notify: Restart PostgreSQL after rollback
+
+    - name: Restore pg_hba.conf
+      ansible.builtin.copy:
+        src: "{{ postgresql_hba_backup }}"
+        dest: "{{ postgresql_hba }}"
+        remote_src: true
+        owner: postgres
+        group: postgres
+        mode: "0640"
+      notify: Restart PostgreSQL after rollback
+
+    - name: Apply restored PostgreSQL configuration
+      ansible.builtin.meta: flush_handlers
+
+    - name: Wait for PostgreSQL after rollback
+      ansible.builtin.command:
+        argv:
+          - pg_isready
+          - -h
+          - 127.0.0.1
+          - -p
+          - "{{ postgresql_port | string }}"
+      register: postgresql_rollback_readiness
+      changed_when: false
+      retries: 10
+      delay: 3
+      until: postgresql_rollback_readiness.rc == 0
+
+    - name: Get PostgreSQL service status after rollback
+      ansible.builtin.systemd:
+        name: "{{ postgresql_service_name }}"
+      register: postgresql_rollback_service
+
+    - name: Validate PostgreSQL rollback
+      ansible.builtin.assert:
+        that:
+          - postgresql_rollback_service.status.ActiveState == "active"
+          - postgresql_rollback_readiness.rc == 0
+        fail_msg: PostgreSQL rollback validation failed.
+        success_msg: PostgreSQL configuration rollback completed successfully.
+
+    - name: Display rollback result
+      ansible.builtin.debug:
+        msg:
+          - "Environment: {{ deployment_environment | default('dev') }}"
+          - "Service: {{ postgresql_rollback_service.status.ActiveState }}"
+          - "Readiness: {{ postgresql_rollback_readiness.stdout }}"
+          - "Database and PostgreSQL data were preserved."
