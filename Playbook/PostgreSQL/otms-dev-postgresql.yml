@@ -1,11 +1,13 @@
 ---
-- name: Configure PostgreSQL for Attendance API
+- name: Configure PostgreSQL Server
   hosts: postgresql
   become: true
-  gather_facts: false
+  gather_facts: true
 
-  vars_files:
-    - vars/dev.yml
+  pre_tasks:
+    - name: Load environment-specific PostgreSQL variables
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/{{ vars_file | default('vars/dev.yml') }}"
 
   handlers:
     - name: Restart PostgreSQL
@@ -14,178 +16,194 @@
         state: restarted
 
   tasks:
-    - name: Configure PostgreSQL with rollback support
-      block:
-        - name: Install PostgreSQL packages
-          ansible.builtin.apt:
-            name:
-              - "postgresql-{{ postgresql_version }}"
-              - "postgresql-client-{{ postgresql_version }}"
-              - python3-psycopg2
-            state: present
-            update_cache: true
+    - name: Update APT package cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
 
-        - name: Enable and start PostgreSQL
-          ansible.builtin.systemd:
-            name: "{{ postgresql_service_name }}"
-            enabled: true
-            state: started
+    - name: Install PostgreSQL packages
+      ansible.builtin.apt:
+        name:
+          - acl
+          - "postgresql-{{ postgresql_version }}"
+          - "postgresql-client-{{ postgresql_version }}"
+        state: present
 
-        - name: Create rollback directory
-          ansible.builtin.file:
-            path: "{{ postgresql_backup_dir }}"
-            state: directory
-            owner: root
-            group: root
-            mode: "0700"
+    - name: Enable and start PostgreSQL service
+      ansible.builtin.systemd:
+        name: "{{ postgresql_service_name }}"
+        enabled: true
+        state: started
 
-        - name: Backup postgresql.conf
-          ansible.builtin.copy:
-            src: "{{ postgresql_conf }}"
-            dest: "{{ postgresql_backup_dir }}/postgresql.conf"
-            remote_src: true
-            force: false
-            mode: "0600"
+    - name: Wait for PostgreSQL before creating configuration backup
+      ansible.builtin.command:
+        argv:
+          - pg_isready
+          - -h
+          - 127.0.0.1
+          - -p
+          - "{{ postgresql_port | string }}"
+      register: postgresql_initial_readiness
+      changed_when: false
+      retries: 10
+      delay: 3
+      until: postgresql_initial_readiness.rc == 0
 
-        - name: Backup pg_hba.conf
-          ansible.builtin.copy:
-            src: "{{ postgresql_hba }}"
-            dest: "{{ postgresql_backup_dir }}/pg_hba.conf"
-            remote_src: true
-            force: false
-            mode: "0600"
+    # These backups represent the configuration that was working
+    # before the current deployment started.
+    - name: Create PostgreSQL backup directory
+      ansible.builtin.file:
+        path: "{{ postgresql_backup_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
 
-        - name: Check whether attendance database already exists
-          community.postgresql.postgresql_query:
-            db: postgres
-            login_unix_socket: /var/run/postgresql
-            query: >-
-              SELECT 1
-              FROM pg_database
-              WHERE datname = '{{ postgresql_database }}';
-          become_user: postgres
-          register: database_before_deployment
+    - name: Backup current postgresql.conf
+      ansible.builtin.copy:
+        src: "{{ postgresql_conf }}"
+        dest: "{{ postgresql_conf_backup }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+        force: true
 
-        - name: Remember whether database existed before deployment
-          ansible.builtin.set_fact:
-            attendance_database_preexisting: >-
-              {{ database_before_deployment.rowcount | int > 0 }}
+    - name: Backup current pg_hba.conf
+      ansible.builtin.copy:
+        src: "{{ postgresql_hba }}"
+        dest: "{{ postgresql_hba_backup }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+        force: true
 
-        - name: Configure PostgreSQL listen addresses
-          ansible.builtin.lineinfile:
-            path: "{{ postgresql_conf }}"
-            regexp: '^\s*#?\s*listen_addresses\s*='
-            line: "listen_addresses = '{{ postgresql_listen_addresses }}'"
-          notify: Restart PostgreSQL
+    - name: Configure PostgreSQL listen addresses
+      ansible.builtin.lineinfile:
+        path: "{{ postgresql_conf }}"
+        regexp: '^\s*#?\s*listen_addresses\s*='
+        line: "listen_addresses = '{{ postgresql_listen_addresses }}'"
+      notify: Restart PostgreSQL
 
-        - name: Allow Attendance API access
-          ansible.builtin.blockinfile:
-            path: "{{ postgresql_hba }}"
-            marker: "# {mark} ATTENDANCE API ACCESS"
-            block: |
-              host    {{ postgresql_database }}    {{ postgresql_user }}    {{ postgresql_allowed_cidr }}    {{ postgresql_auth_method }}
-          notify: Restart PostgreSQL
+    - name: Configure PostgreSQL port
+      ansible.builtin.lineinfile:
+        path: "{{ postgresql_conf }}"
+        regexp: '^\s*#?\s*port\s*='
+        line: "port = {{ postgresql_port }}"
+      notify: Restart PostgreSQL
 
-        - name: Apply PostgreSQL configuration
-          ansible.builtin.meta: flush_handlers
+    - name: Configure PostgreSQL password encryption
+      ansible.builtin.lineinfile:
+        path: "{{ postgresql_conf }}"
+        regexp: '^\s*#?\s*password_encryption\s*='
+        line: "password_encryption = '{{ postgresql_auth_method }}'"
+      notify: Restart PostgreSQL
 
-        - name: Wait for PostgreSQL
-          ansible.builtin.command:
-            argv:
-              - pg_isready
-              - -h
-              - 127.0.0.1
-              - -p
-              - "{{ postgresql_port | string }}"
-          register: postgresql_ready
-          changed_when: false
-          retries: 10
-          delay: 3
-          until: postgresql_ready.rc == 0
+    - name: Allow attendance database access from OTMS VPC
+      ansible.builtin.blockinfile:
+        path: "{{ postgresql_hba }}"
+        marker: "# {mark} ANSIBLE MANAGED OTMS POSTGRESQL ACCESS"
+        block: |
+          host    {{ postgresql_database }}    {{ postgresql_user }}    {{ postgresql_allowed_cidr }}    {{ postgresql_auth_method }}
+      notify: Restart PostgreSQL
 
-        - name: Set PostgreSQL user password
-          community.postgresql.postgresql_user:
-            name: "{{ postgresql_user }}"
-            password: "{{ postgresql_password }}"
-            role_attr_flags: LOGIN
-            state: present
-            login_unix_socket: /var/run/postgresql
-          become_user: postgres
-          no_log: true
+    - name: Apply PostgreSQL configuration changes
+      ansible.builtin.meta: flush_handlers
 
-        - name: Create attendance database
-          community.postgresql.postgresql_db:
-            name: "{{ postgresql_database }}"
-            owner: "{{ postgresql_user }}"
-            encoding: UTF8
-            state: present
-            login_unix_socket: /var/run/postgresql
-          become_user: postgres
+    - name: Wait for PostgreSQL after configuration change
+      ansible.builtin.command:
+        argv:
+          - pg_isready
+          - -h
+          - 127.0.0.1
+          - -p
+          - "{{ postgresql_port | string }}"
+      register: postgresql_configured_readiness
+      changed_when: false
+      retries: 10
+      delay: 3
+      until: postgresql_configured_readiness.rc == 0
 
-        - name: Verify attendance database
-          community.postgresql.postgresql_query:
-            db: postgres
-            login_unix_socket: /var/run/postgresql
-            query: >-
-              SELECT datname
-              FROM pg_database
-              WHERE datname = '{{ postgresql_database }}';
-          become_user: postgres
-          register: database_check
-          failed_when: database_check.rowcount | int != 1
+    - name: Set postgres user password
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -c
+          - >-
+            ALTER USER {{ postgresql_user }}
+            WITH PASSWORD '{{ postgresql_password }}';
+      become_user: postgres
+      no_log: true
+      changed_when: false
 
-        - name: Display success message
-          ansible.builtin.debug:
-            msg: "Database {{ postgresql_database }} is ready."
+    - name: Check whether attendance database exists
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - >-
+            SELECT 1 FROM pg_database
+            WHERE datname='{{ postgresql_database }}';
+      become_user: postgres
+      register: postgresql_database_check
+      changed_when: false
 
-      rescue:
-        - name: Display rollback message
-          ansible.builtin.debug:
-            msg: "Deployment failed. Starting PostgreSQL rollback."
+    - name: Create attendance database
+      ansible.builtin.command:
+        argv:
+          - createdb
+          - "--owner={{ postgresql_user }}"
+          - "{{ postgresql_database }}"
+      become_user: postgres
+      when: postgresql_database_check.stdout | trim != "1"
 
-        - name: Remove newly created attendance database
-          community.postgresql.postgresql_db:
-            name: "{{ postgresql_database }}"
-            state: absent
-            force: true
-            login_unix_socket: /var/run/postgresql
-          become_user: postgres
-          when:
-            - attendance_database_preexisting is defined
-            - not attendance_database_preexisting | bool
+    - name: Get PostgreSQL service status
+      ansible.builtin.systemd:
+        name: "{{ postgresql_service_name }}"
+      register: postgresql_service_status
 
-        - name: Restore postgresql.conf
-          ansible.builtin.copy:
-            src: "{{ postgresql_backup_dir }}/postgresql.conf"
-            dest: "{{ postgresql_conf }}"
-            remote_src: true
-            owner: postgres
-            group: postgres
-            mode: "0644"
-          when:
-            - lookup('ansible.builtin.fileglob',
-                     postgresql_backup_dir + '/postgresql.conf',
-                     wantlist=true) | length > 0
+    - name: Fail when PostgreSQL service is not running
+      ansible.builtin.assert:
+        that:
+          - postgresql_service_status.status.ActiveState == "active"
+        fail_msg: PostgreSQL service is not running.
+        success_msg: PostgreSQL service is running.
 
-        - name: Restore pg_hba.conf
-          ansible.builtin.copy:
-            src: "{{ postgresql_backup_dir }}/pg_hba.conf"
-            dest: "{{ postgresql_hba }}"
-            remote_src: true
-            owner: postgres
-            group: postgres
-            mode: "0640"
-          when:
-            - lookup('ansible.builtin.fileglob',
-                     postgresql_backup_dir + '/pg_hba.conf',
-                     wantlist=true) | length > 0
+    - name: Verify PostgreSQL listener
+      ansible.builtin.shell: |
+        set -o pipefail
+        ss -lnt |
+        grep -E '0\.0\.0\.0:{{ postgresql_port }}|\[::\]:{{ postgresql_port }}'
+      args:
+        executable: /bin/bash
+      register: postgresql_port_status
+      changed_when: false
 
-        - name: Restart PostgreSQL after rollback
-          ansible.builtin.systemd:
-            name: "{{ postgresql_service_name }}"
-            state: restarted
+    - name: Verify database configuration
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -d
+          - "{{ postgresql_database }}"
+          - -tAc
+          - >-
+            SELECT current_database()
+            || ' | '
+            || current_user
+            || ' | '
+            || current_setting('listen_addresses')
+            || ':'
+            || current_setting('port');
+      become_user: postgres
+      register: postgresql_validation
+      changed_when: false
 
-        - name: Fail playbook after rollback
-          ansible.builtin.fail:
-            msg: "PostgreSQL deployment failed and rollback was completed."
-```
+    - name: Display PostgreSQL validation result
+      ansible.builtin.debug:
+        msg:
+          - "Environment: {{ deployment_environment | default('dev') }}"
+          - "Service state: {{ postgresql_service_status.status.ActiveState }}"
+          - "Readiness: {{ postgresql_configured_readiness.stdout }}"
+          - "Listener: {{ postgresql_port_status.stdout }}"
+          - "Database: {{ postgresql_validation.stdout | trim }}"
