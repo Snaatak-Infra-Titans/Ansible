@@ -1,0 +1,58 @@
+---
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install Redis
+  apt:
+    name: redis-server
+    state: present
+
+- name: Ensure Redis config directory exists
+  file:
+    path: /etc/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+
+- name: Deploy redis.conf
+  template:
+    src: redis.conf.j2
+    dest: /etc/redis/redis.conf
+    owner: redis
+    group: redis
+    mode: "0644"
+  notify: Restart Redis
+
+- name: Ensure Redis data directory exists
+  file:
+    path: /var/lib/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+
+- name: Enable Redis service
+  systemd:
+    name: redis-server
+    enabled: yes
+
+- name: Start Redis
+  systemd:
+    name: redis-server
+    state: started
+
+- name: Wait for Redis
+  wait_for:
+    port: 6379
+    timeout: 30
+
+- name: Verify Redis
+  command: redis-cli ping
+  register: redis_ping
+  changed_when: false
+
+- debug:
+    var: redis_ping.stdout

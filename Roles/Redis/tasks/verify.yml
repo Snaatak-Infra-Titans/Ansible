@@ -1,0 +1,17 @@
+---
+- name: Check Redis service
+  ansible.builtin.service_facts:
+
+- name: Fail if Redis is not running
+  ansible.builtin.fail:
+    msg: Redis service is not running.
+  when: ansible_facts.services['redis-server.service'].state != "running"
+
+- name: Check Redis version
+  ansible.builtin.command: redis-server --version
+  register: redis_version
+  changed_when: false
+
+- name: Display Redis version
+  ansible.builtin.debug:
+    var: redis_version.stdout

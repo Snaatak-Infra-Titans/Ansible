@@ -1,0 +1,9 @@
+---
+galaxy_info:
+  author: Versha
+  description: Ansible role to install and configure Redis
+  company: MyGurukulam
+  license: MIT
+  min_ansible_version: "2.15"
+
+dependencies: []
