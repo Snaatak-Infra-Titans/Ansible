@@ -1,4 +1,4 @@
-  # Ansible Role & Playbook CI/CD — Shared Library Documentation
+# Ansible Playbook CI/CD — Shared Library Documentation
 
 <p align="center">
   <img src="https://tcude.net/content/images/size/w2000/2022/01/MainImage-17.png" alt="Ansible" width="250"/>
@@ -10,7 +10,7 @@
 
 | **Author** | **Created on** | **Version** | **Last Updated By** | **Last Edited On** | **Pre Reviewer** | **L0 Reviewer** | **L1 Reviewer** | **L2 Reviewer** |
 | ---------- | -------------- | ----------- | ------------------- | ------------------ | ---------------- | --------------- | --------------- | --------------- |
-| Ankita     | 20-07-2026     | v1.0        | Ankita              | 20-07-2026         | Team             | Komal Jaiswal   | Akshit Kapil    | Mahesh Kumar    |
+| Ankita     | 20-07-2026     | v1.0        | Ankita              | 15-08-2026         | Team             | Komal Jaiswal   | Akshit Kapil    | Mahesh Kumar    |
 
 ---
 
@@ -35,11 +35,11 @@
 
 # 1. Introduction
 
-Ansible is an open-source automation tool used for configuration management, application deployment, and infrastructure provisioning.
+This document provides an overview of the **Ansible Playbook CI/CD Shared Library** used to standardize Ansible playbook validation and execution within Jenkins pipelines.
 
-To avoid repeating the same pipeline logic across multiple Jenkins projects, common Ansible operations are implemented inside a Jenkins Shared Library. Instead of writing identical stages in every Jenkinsfile, projects can simply invoke reusable shared library functions.
+It covers the purpose of the shared library, supported reusable functions, prerequisites, Jenkins pipeline usage, inputs and outputs, shared library structure, pipeline workflow, error handling, and example Ansible commands.
 
-This approach simplifies pipeline development, improves consistency, and reduces maintenance effort.
+The document is intended to explain how reusable Jenkins Shared Library components can be used to maintain consistent Ansible playbook CI/CD logic across multiple projects.
 
 ---
 
@@ -47,14 +47,14 @@ This approach simplifies pipeline development, improves consistency, and reduces
 
 The Ansible CI/CD Shared Library is a reusable Jenkins library that contains common pipeline functions for validating and executing Ansible playbooks.
 
-Rather than implementing the same Ansible commands in every Jenkins pipeline, these functions are written once and reused across multiple repositories.
+Rather than implementing the same Ansible commands in every Jenkins pipeline, the common logic is maintained centrally and reused across multiple repositories.
 
 The library provides reusable functions to:
 
 * Validate Ansible playbook syntax
-* Execute playbooks
+* Execute Ansible playbooks
 * Perform dry-run validation
-* Standardize CI/CD pipelines
+* Standardize CI/CD pipeline logic
 * Reduce duplicate Jenkins pipeline code
 
 ---
@@ -69,7 +69,7 @@ The shared library provides several advantages:
 * Simplifies Jenkinsfiles.
 * Makes maintenance easier.
 * Improves readability and scalability.
-* Centralizes updates in one location.
+* Centralizes common pipeline logic.
 
 ---
 
@@ -77,22 +77,24 @@ The shared library provides several advantages:
 
 Before using the shared library, ensure the following components are available.
 
-| Tool                   | Purpose                       |
-| ---------------------- | ----------------------------- |
-| Jenkins                | CI/CD Server                  |
-| Jenkins Shared Library | Reusable pipeline functions   |
-| Git                    | Source Code Management        |
-| Python 3.10+           | Required by Ansible           |
-| Ansible                | Configuration Management Tool |
-| SSH Credentials        | Connect to managed hosts      |
-| Inventory File         | Target host definitions       |
-| Ansible Playbook       | Deployment automation         |
+| Tool / Component          | Purpose                                                          |
+| ------------------------- | ---------------------------------------------------------------- |
+| Jenkins                   | CI/CD Server                                                     |
+| Jenkins Shared Library    | Provides reusable pipeline functionality                         |
+| Git                       | Source Code Management                                           |
+| Python 3.10+              | Required by Ansible                                              |
+| Ansible                   | Configuration Management Tool                                    |
+| AWS Systems Manager (SSM) | Provides secure access to managed target instances               |
+| SSM Agent                 | Enables target instances to communicate with AWS Systems Manager |
+| IAM Role                  | Provides permissions required for SSM communication              |
+| Inventory File            | Defines target hosts                                             |
+| Ansible Playbook          | Contains automation tasks                                        |
 
 ---
 
 # 5. Supported Shared Library Functions
 
-The shared library exposes reusable pipeline functions that can be invoked directly from Jenkins pipelines.
+The shared library exposes reusable pipeline functions that can be invoked from Jenkins pipelines.
 
 ---
 
@@ -146,8 +148,8 @@ ansible-playbook -i inventory playbook.yml --check
 ### Purpose
 
 * Performs a dry-run validation
-* Simulates execution
-* Detects possible failures
+* Simulates playbook execution
+* Detects possible execution issues
 * Makes no changes to target systems
 
 ---
@@ -173,10 +175,10 @@ pipeline {
             }
         }
 
-        stage('Execute Playbook') {
+        stage('Dry Run Validation') {
             steps {
                 script {
-                    ansiblePlaybook(
+                    ansiblePlaybookCheck(
                         inventory: 'inventory/dev',
                         playbook: 'playbook.yml'
                     )
@@ -184,10 +186,10 @@ pipeline {
             }
         }
 
-        stage('Dry Run Validation') {
+        stage('Execute Playbook') {
             steps {
                 script {
-                    ansiblePlaybookCheck(
+                    ansiblePlaybook(
                         inventory: 'inventory/dev',
                         playbook: 'playbook.yml'
                     )
@@ -206,40 +208,41 @@ pipeline {
 
 ## Inputs
 
-| Parameter   | Description                               |
-| ----------- | ----------------------------------------- |
-| `playbook`  | Path to the Ansible playbook              |
-| `inventory` | Inventory file                            |
-| `extraArgs` | Additional Ansible CLI arguments          |
-| `limit`     | Execute against selected hosts (optional) |
-| `tags`      | Execute selected tags only (optional)     |
+| Parameter   | Description                                    |
+| ----------- | ---------------------------------------------- |
+| `playbook`  | Path to the Ansible playbook                   |
+| `inventory` | Inventory file used to identify target hosts   |
+| `extraArgs` | Additional Ansible CLI arguments               |
+| `limit`     | Execute against selected hosts only (optional) |
+| `tags`      | Execute selected playbook tags only (optional) |
 
 ## Outputs
 
 * Syntax validation report
+* Dry-run validation result
 * Playbook execution logs
 * Jenkins console output
 * Pipeline status
-* Error messages (if any)
+* Error messages, if any
 
 ---
 
 # 8. Shared Library Structure
 
-The shared library is organized into dedicated directories for better maintainability.
+For this implementation, the Ansible Playbook CI/CD Shared Library follows the **`src`-based approach**.
+
+The reusable Ansible CI/CD logic is maintained inside Groovy classes under the `src/` directory, while the `vars/` directory provides the pipeline-level entry point.
 
 ```text
 ansible-shared-library/
-
-├── vars/
-│   ├── ansibleSyntaxCheck.groovy
-│   ├── ansiblePlaybook.groovy
-│   └── ansiblePlaybookCheck.groovy
 │
 ├── src/
 │   └── org/
 │       └── company/
 │           └── Ansible.groovy
+│
+├── vars/
+│   └── ansible.groovy
 │
 ├── resources/
 │
@@ -248,39 +251,49 @@ ansible-shared-library/
 
 ### Directory Description
 
-| Directory  | Description                          |
-| ---------- | ------------------------------------ |
-| vars/      | Global pipeline functions            |
-| src/       | Reusable Groovy classes              |
-| resources/ | Supporting files used by the library |
-| README.md  | Project documentation                |
+| Directory / File                 | Description                                                                       |
+| -------------------------------- | --------------------------------------------------------------------------------- |
+| `src/`                           | Contains reusable Groovy classes used by the shared library                       |
+| `src/org/company/Ansible.groovy` | Contains reusable Ansible playbook CI/CD logic                                    |
+| `vars/`                          | Provides pipeline-level access to shared library functionality                    |
+| `vars/ansible.groovy`            | Acts as an entry point between the Jenkins pipeline and the Groovy implementation |
+| `resources/`                     | Stores supporting files or templates, if required                                 |
+| `README.md`                      | Contains documentation for the shared library                                     |
+
+The main reusable implementation remains inside **`src/`**, which keeps the Ansible pipeline logic organized and separates reusable Groovy logic from pipeline-level access.
 
 ---
 
 # 9. Pipeline Workflow
 
-The Jenkins pipeline performs the following steps:
+The Jenkins pipeline follows the below workflow:
 
-1. Checkout source code.
-2. Load the Jenkins Shared Library.
-3. Validate the Ansible playbook syntax.
-4. Execute the Ansible playbook.
-5. Perform a dry-run validation.
-6. Display pipeline status.
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/dd3d983f-9cbf-4131-bfb0-46949a658623" />
 
-If any stage fails, Jenkins immediately stops the pipeline and marks the build as failed.
+### Workflow Steps
+
+1. Source code changes trigger the Jenkins pipeline.
+2. Jenkins loads the Ansible Shared Library.
+3. The playbook syntax is validated.
+4. The playbook is executed in Check Mode for dry-run validation.
+5. If validation succeeds, the playbook is executed.
+6. AWS Systems Manager (SSM) is used to securely reach the managed target instances.
+7. The playbook is applied to the required target hosts.
+8. Jenkins displays the final pipeline status and execution logs.
+
+If any validation or execution stage fails, Jenkins marks the pipeline as failed.
 
 ---
 
 # 10. Error Handling
 
-| Error Type             | Example                         | Resolution                                   |
-| ---------------------- | ------------------------------- | -------------------------------------------- |
-| Syntax Error           | Invalid YAML or playbook syntax | Correct the syntax and rerun the pipeline    |
-| Inventory Error        | Inventory file not found        | Verify inventory path                        |
-| Authentication Failure | SSH connection failed           | Check SSH credentials and permissions        |
-| Playbook Failure       | Task execution failed           | Review Jenkins console logs and fix the task |
-| Shared Library Error   | Function execution failed       | Verify shared library configuration          |
+| Error Type             | Example                                      | Resolution                                                          |
+| ---------------------- | -------------------------------------------- | ------------------------------------------------------------------- |
+| Syntax Error           | Invalid YAML or playbook syntax              | Correct the syntax and rerun the pipeline                           |
+| Inventory Error        | Inventory file not found                     | Verify the inventory path                                           |
+| SSM Connection Failure | Target instance is not reachable through SSM | Verify SSM Agent status, IAM permissions, and instance connectivity |
+| Playbook Failure       | Ansible task execution failed                | Review Jenkins console logs and correct the failed task             |
+| Shared Library Error   | Shared library function failed               | Verify the shared library implementation and function usage         |
 
 ---
 
@@ -290,18 +303,20 @@ If any stage fails, Jenkins immediately stops the pipeline and marks the build a
 # Validate playbook syntax
 ansible-playbook --syntax-check playbook.yml
 
-# Execute playbook
-ansible-playbook -i inventory playbook.yml
-
 # Dry run validation
 ansible-playbook -i inventory playbook.yml --check
+
+# Execute playbook
+ansible-playbook -i inventory playbook.yml
 ```
 
 ---
 
 # 12. Conclusion
 
-The Ansible Role & Playbook CI/CD Shared Library centralizes reusable Jenkins pipeline logic for validating and executing Ansible playbooks. By moving common pipeline functionality into a shared library, teams can build consistent, maintainable, and scalable CI/CD pipelines while reducing duplicate code and simplifying Jenkinsfiles.
+The Ansible Playbook CI/CD Shared Library centralizes reusable Jenkins pipeline logic for validating and executing Ansible playbooks.
+
+By maintaining common pipeline functionality in a shared library, teams can reduce duplicate Jenkins code, maintain consistency across projects, and simplify Ansible playbook CI/CD workflows.
 
 ---
 
@@ -323,3 +338,4 @@ The Ansible Role & Playbook CI/CD Shared Library centralizes reusable Jenkins pi
 | Ansible Playbook Documentation       | https://docs.ansible.com/ansible/latest/playbook_guide/index.html |
 | Jenkins Shared Library Documentation | https://www.jenkins.io/doc/book/pipeline/shared-libraries/        |
 | Ansible CLI Documentation            | https://docs.ansible.com/ansible/latest/cli/ansible-playbook.html |
+| AWS Systems Manager Documentation    | https://docs.aws.amazon.com/systems-manager/                      |
