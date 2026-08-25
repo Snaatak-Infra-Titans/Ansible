@@ -1,0 +1,6 @@
+---
+profile: min
+exclude_paths:
+  - .ansible/
+  - .ansible-ci-venv/
+  - reports/

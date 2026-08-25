@@ -1,0 +1,14 @@
+---
+# Default variables for the PostgreSQL role.
+postgres_version: "16"
+postgres_port: 5432
+postgres_listen_addresses: "localhost"
+postgres_allowed_hosts: "127.0.0.1/32"
+postgres_max_connections: 100
+postgres_shared_buffers: "128MB"
+
+postgres_db: "attendance_db"
+postgres_user: "postgres"
+
+# Supply postgres_password from protected environment variables or Ansible Vault
+# during CD. No database password is stored in the role.

@@ -1,0 +1,6 @@
+---
+- name: Load the Redis role for CI validation
+  hosts: validation
+  gather_facts: false
+  roles:
+    - role: redis

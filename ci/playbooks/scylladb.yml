@@ -1,0 +1,6 @@
+---
+- name: Load the ScyllaDB role for CI validation
+  hosts: validation
+  gather_facts: false
+  roles:
+    - role: scylladb
