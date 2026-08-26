@@ -11,6 +11,11 @@ scylla_rpc_address: "{{ ansible_facts.default_ipv4.address }}"
 scylla_endpoint_snitch: "SimpleSnitch"
 scylla_developer_mode: true
 
+# Resource limits for the cost-optimized OTMS demo node
+scylla_smp: 1
+scylla_memory: "2G"
+scylla_overprovisioned: true
+
 # Ports
 scylla_native_transport_port: 9042
 scylla_api_port: 10000

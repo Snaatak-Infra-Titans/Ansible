@@ -1,4 +1,23 @@
 ---
+- name: Validate demo resource limits
+  ansible.builtin.assert:
+    that:
+      - scylla_smp | int >= 1
+      - scylla_memory is match('^[1-9][0-9]*[MG]$')
+    fail_msg: "ScyllaDB resource limits must define a positive CPU count and memory such as 2G."
+
+- name: Configure demo resource limits
+  ansible.builtin.lineinfile:
+    path: /etc/default/scylla-server
+    regexp: '^SCYLLA_ARGS='
+    line: >-
+      SCYLLA_ARGS="--smp {{ scylla_smp }}
+      --memory {{ scylla_memory }}
+      {% if scylla_overprovisioned %}--overprovisioned{% endif %}"
+    create: false
+    backup: true
+  notify: Restart ScyllaDB
+
 - name: Set cluster name
   ansible.builtin.lineinfile:
     path: /etc/scylla/scylla.yaml
