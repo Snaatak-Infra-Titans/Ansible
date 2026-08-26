@@ -1,0 +1,34 @@
+---
+- name: Configure the OTMS PostgreSQL database
+  hosts: postgresql
+  gather_facts: true
+  become: true
+  vars:
+    postgres_listen_addresses: "*"
+    postgres_allowed_hosts: "{{ otms_database_client_cidr }}"
+    postgres_password: "{{ lookup('ansible.builtin.env', 'OTMS_POSTGRES_PASSWORD') }}"
+  pre_tasks:
+    - name: Validate protected PostgreSQL password input
+      ansible.builtin.assert:
+        that:
+          - postgres_password | length > 0
+        fail_msg: "OTMS_POSTGRES_PASSWORD must be supplied by the CD credential binding."
+      no_log: true
+  roles:
+    - role: postgresql
+
+- name: Configure the OTMS Redis database
+  hosts: redis
+  gather_facts: true
+  become: true
+  vars:
+    redis_bind: "127.0.0.1 {{ ansible_facts.default_ipv4.address }}"
+  roles:
+    - role: redis
+
+- name: Configure the OTMS ScyllaDB database
+  hosts: scylladb
+  gather_facts: true
+  become: true
+  roles:
+    - role: scylladb

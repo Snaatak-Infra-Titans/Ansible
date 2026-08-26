@@ -6,6 +6,7 @@
     role_attr_flags: SUPERUSER
   become: true
   become_user: postgres
+  no_log: true
   when: postgres_user is defined and postgres_user | length > 0
 
 - name: Create PostgreSQL database

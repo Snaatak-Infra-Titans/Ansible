@@ -5,6 +5,9 @@
 - name: Configure ScyllaDB
   ansible.builtin.import_tasks: configure.yml
 
+- name: Apply ScyllaDB configuration before readiness checks
+  ansible.builtin.meta: flush_handlers
+
 - name: Enable and Start ScyllaDB Service
   ansible.builtin.import_tasks: service.yml
 
