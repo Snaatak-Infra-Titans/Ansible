@@ -1,12 +1,15 @@
 ---
 - name: Install PostgreSQL
-  import_tasks: install.yaml
+  ansible.builtin.import_tasks: install.yaml
 
 - name: Configure PostgreSQL
-  import_tasks: configure.yaml
+  ansible.builtin.import_tasks: configure.yaml
 
 - name: Manage PostgreSQL Service
-  import_tasks: service.yaml
+  ansible.builtin.import_tasks: service.yaml
 
 - name: Verify PostgreSQL Setup (Users & Databases)
-  import_tasks: verify.yaml
+  ansible.builtin.import_tasks: verify.yaml
+
+- name: Initialize Attendance API Schema
+  ansible.builtin.import_tasks: schema.yaml

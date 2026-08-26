@@ -1,0 +1,83 @@
+---
+- name: Check existing OTMS application tables
+  ansible.builtin.command:
+    argv:
+      - cqlsh
+      - "{{ scylla_cql_host }}"
+      - "{{ scylla_cql_port | string }}"
+      - "-e"
+      - >-
+        SELECT table_name FROM system_schema.tables
+        WHERE keyspace_name = '{{ scylla_application_keyspace }}';
+  register: existing_otms_tables
+  changed_when: false
+  run_once: true
+
+- name: Create Employee API table
+  ansible.builtin.command:
+    argv:
+      - cqlsh
+      - "{{ scylla_cql_host }}"
+      - "{{ scylla_cql_port | string }}"
+      - "-e"
+      - |
+        CREATE TABLE IF NOT EXISTS {{ scylla_application_keyspace }}.employee_info (
+          id text PRIMARY KEY,
+          joining_date date,
+          address text,
+          department text,
+          designation text,
+          email text,
+          name text,
+          office_location text,
+          phone_number text,
+          status text
+        );
+  when: "'employee_info' not in existing_otms_tables.stdout"
+  run_once: true
+
+- name: Create Salary API table
+  ansible.builtin.command:
+    argv:
+      - cqlsh
+      - "{{ scylla_cql_host }}"
+      - "{{ scylla_cql_port | string }}"
+      - "-e"
+      - |
+        CREATE TABLE IF NOT EXISTS {{ scylla_application_keyspace }}.employee_salary (
+          id text,
+          process_date text,
+          name text,
+          salary float,
+          status text,
+          PRIMARY KEY (id, process_date)
+        ) WITH CLUSTERING ORDER BY (process_date DESC);
+  when: "'employee_salary' not in existing_otms_tables.stdout"
+  run_once: true
+
+- name: Check initialized OTMS application tables
+  ansible.builtin.command:
+    argv:
+      - cqlsh
+      - "{{ scylla_cql_host }}"
+      - "{{ scylla_cql_port | string }}"
+      - "-e"
+      - >-
+        SELECT table_name FROM system_schema.tables
+        WHERE keyspace_name = '{{ scylla_application_keyspace }}';
+  register: initialized_otms_tables
+  changed_when: false
+  run_once: true
+
+- name: Verify OTMS application tables
+  ansible.builtin.assert:
+    that:
+      - "'employee_info' in initialized_otms_tables.stdout"
+      - "'employee_salary' in initialized_otms_tables.stdout"
+    fail_msg: >-
+      Required Employee or Salary API tables are missing from
+      {{ scylla_application_keyspace }}.
+    success_msg: >-
+      Employee and Salary API tables are ready in
+      {{ scylla_application_keyspace }}.
+  run_once: true

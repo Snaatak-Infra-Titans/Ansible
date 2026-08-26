@@ -16,13 +16,14 @@ scylla_native_transport_port: 9042
 scylla_api_port: 10000
 
 # CQL Connectivity
-scylla_cql_host: "scylladb.otms.internal"
+scylla_cql_host: "otms.scylladb.internal"
 scylla_cql_port: "{{ scylla_native_transport_port }}"
 scylla_cql_wait_timeout: 180
 
 # Application Keyspaces
+scylla_application_keyspace: "employee_db"
 scylla_keyspaces:
-  - employee_db
+  - "{{ scylla_application_keyspace }}"
 
 # Replication
 scylla_replication_class: "SimpleStrategy"

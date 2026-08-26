@@ -1,0 +1,37 @@
+---
+- name: Create Attendance API records table
+  community.postgresql.postgresql_query:
+    db: "{{ postgres_db }}"
+    query: |
+      CREATE TABLE IF NOT EXISTS records (
+        id text NOT NULL,
+        name text,
+        status text,
+        date date NOT NULL,
+        CONSTRAINT records_pk PRIMARY KEY (id, date)
+      );
+  become: true
+  become_user: postgres
+
+- name: Check Attendance API records table
+  community.postgresql.postgresql_query:
+    db: "{{ postgres_db }}"
+    query: |
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name = 'records'
+      ) AS table_exists;
+  become: true
+  become_user: postgres
+  register: attendance_records_table
+  changed_when: false
+
+- name: Verify Attendance API records table
+  ansible.builtin.assert:
+    that:
+      - attendance_records_table.query_result | length == 1
+      - attendance_records_table.query_result[0]['table_exists'] | bool
+    fail_msg: "Attendance API table public.records was not created in {{ postgres_db }}."
+    success_msg: "Attendance API table public.records is ready in {{ postgres_db }}."
