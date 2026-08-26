@@ -20,7 +20,7 @@
       - "{{ scylla_cql_host }}"
       - "{{ scylla_cql_port | string }}"
       - "-e"
-      - |
+      - |-
         CREATE TABLE IF NOT EXISTS {{ scylla_application_keyspace }}.employee_info (
           id text PRIMARY KEY,
           joining_date date,
@@ -43,7 +43,7 @@
       - "{{ scylla_cql_host }}"
       - "{{ scylla_cql_port | string }}"
       - "-e"
-      - |
+      - |-
         CREATE TABLE IF NOT EXISTS {{ scylla_application_keyspace }}.employee_salary (
           id text,
           process_date text,
